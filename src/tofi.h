@@ -113,4 +113,7 @@ struct tofi {
 	char target_output_name[MAX_OUTPUT_NAME_LEN];
 };
 
+void nav_push_level(struct tofi *tofi, struct nav_level *level);
+void update_view_state_from_level(struct tofi *tofi, struct nav_level *level);
+
 #endif

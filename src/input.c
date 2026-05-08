@@ -8,6 +8,7 @@
 #include "nav.h"
 #include "matching.h"
 #include "nelem.h"
+#include "plugin.h"
 #include "string_vec.h"
 #include "tofi.h"
 #include "unicode.h"
@@ -28,6 +29,7 @@ static void previous_cursor_or_result(struct tofi *tofi);
 static void reset_selection(struct tofi *tofi);
 static void nav_filter_results(struct tofi *tofi, const char *filter);
 static void nav_pop_and_restore(struct tofi *tofi);
+static bool try_teleport(struct tofi *tofi);
 
 void input_scroll_up(struct tofi *tofi)
 {
@@ -274,6 +276,91 @@ void reset_selection(struct tofi *tofi)
 	}
 }
 
+static bool try_teleport(struct tofi *tofi)
+{
+	struct view_state *state = &tofi->view_state;
+	const char *input = state->input_utf8;
+	size_t input_len = state->input_utf8_length;
+	
+	if (input_len < 2 || input[input_len - 1] != ':') {
+		return false;
+	}
+	
+	const char *colon = &input[input_len - 1];
+	if (colon == input) {
+		return false;
+	}
+	
+	size_t prefix_len = colon - input;
+	char prefix[PLUGIN_NAME_MAX];
+	if (prefix_len >= PLUGIN_NAME_MAX) {
+		return false;
+	}
+	memcpy(prefix, input, prefix_len);
+	prefix[prefix_len] = '\0';
+	
+	struct plugin *target = plugin_match_prefix(prefix);
+	if (!target) {
+		return false;
+	}
+	
+	struct nav_level *level = tofi->nav_current;
+	
+	if (level) {
+		strncpy(level->input_buffer, state->input_utf8, NAV_INPUT_MAX - 1);
+		level->input_buffer[NAV_INPUT_MAX - 1] = '\0';
+		level->input_length = state->input_utf8_length;
+		
+		size_t strip_len = prefix_len + 1;
+		memmove(level->input_buffer, level->input_buffer + strip_len, level->input_length - strip_len + 1);
+		level->input_length -= strip_len;
+		
+		nav_filter_results(tofi, level->input_buffer);
+		reset_selection(tofi);
+	} else {
+		strncpy(tofi->base_input_buffer, state->input_utf8, 4 * VIEW_MAX_INPUT - 1);
+		tofi->base_input_buffer[4 * VIEW_MAX_INPUT - 1] = '\0';
+		tofi->base_input_length = state->input_utf8_length;
+		
+		size_t strip_len = prefix_len + 1;
+		memmove(tofi->base_input_buffer, tofi->base_input_buffer + strip_len, tofi->base_input_length - strip_len + 1);
+		tofi->base_input_length -= strip_len;
+		
+		string_ref_vec_destroy(&state->results);
+		if (tofi->base_input_buffer[0] == '\0') {
+			state->results = string_ref_vec_copy(&state->commands);
+		} else {
+			state->results = string_ref_vec_filter(&state->commands, tofi->base_input_buffer, MATCHING_ALGORITHM_FUZZY);
+		}
+		reset_selection(tofi);
+	}
+	
+	struct value_dict *dict = dict_create();
+	struct nav_level *new_level = nav_level_create(SELECTION_PLUGIN, dict);
+	strncpy(new_level->plugin_ref, target->name, NAV_NAME_MAX - 1);
+	
+	plugin_populate_all(target, &new_level->results);
+	nav_results_copy(&new_level->backup_results, &new_level->results);
+	
+	if (target->context_name[0]) {
+		snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
+	}
+	
+	nav_push_level(tofi, new_level);
+	update_view_state_from_level(tofi, new_level);
+	
+	state->input_utf32_length = 0;
+	state->input_utf8_length = 0;
+	state->input_utf8[0] = '\0';
+	state->cursor_position = 0;
+	state->selection = 0;
+	state->first_result = 0;
+	
+	tofi->window.surface.redraw = true;
+	log_debug("Teleported to plugin: %s\n", target->name);
+	return true;
+}
+
 void add_character(struct tofi *tofi, xkb_keycode_t keycode)
 {
 	struct view_state *state = &tofi->view_state;
@@ -297,6 +384,10 @@ void add_character(struct tofi *tofi, xkb_keycode_t keycode)
 				N_ELEM(buf));
 		state->input_utf8_length += len;
 		state->input_utf8[state->input_utf8_length] = '\0';
+
+		if (try_teleport(tofi)) {
+			return;
+		}
 
 		struct nav_level *level = tofi->nav_current;
 		if (level) {

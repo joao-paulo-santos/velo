@@ -948,7 +948,7 @@ static struct nav_result *find_nav_result(struct nav_level *level, const char *l
 	return NULL;
 }
 
-static void nav_push_level(struct tofi *tofi, struct nav_level *level)
+void nav_push_level(struct tofi *tofi, struct nav_level *level)
 {
 	wl_list_insert(&tofi->nav_stack, &level->link);
 	tofi->nav_current = level;
@@ -983,7 +983,7 @@ static void nav_pop_level(struct tofi *tofi)
 	nav_level_destroy(current);
 }
 
-static void update_view_state_from_level(struct tofi *tofi, struct nav_level *level)
+void update_view_state_from_level(struct tofi *tofi, struct nav_level *level)
 {
 	string_ref_vec_destroy(&tofi->view_state.results);
 	tofi->view_state.results = string_ref_vec_create();
@@ -1638,7 +1638,7 @@ static bool do_submit(struct tofi *tofi)
 			strncpy(new_level->plugin_ref, action->plugin_ref, NAV_NAME_MAX - 1);
 			new_level->execution_type = action->execution_type;
 			
-			plugin_populate_plugin_actions(target_plugin, &new_level->results);
+			plugin_populate_all(target_plugin, &new_level->results);
 			nav_results_copy(&new_level->backup_results, &new_level->results);
 			
 			if (target_plugin->context_name[0]) {

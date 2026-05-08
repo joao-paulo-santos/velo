@@ -63,6 +63,8 @@ void plugin_apply_filter(const char *filter_string);
 
 void plugin_populate_results(struct wl_list *results);
 void plugin_populate_plugin_actions(struct plugin *plugin, struct wl_list *results);
+void plugin_populate_all(struct plugin *plugin, struct wl_list *results);
+struct plugin *plugin_match_prefix(const char *prefix);
 void plugin_run_list_cmd(const char *list_cmd, format_t format,
 	const char *label_field, const char *value_field,
 	struct action_def *on_select, const char *template, const char *as,

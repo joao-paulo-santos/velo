@@ -580,6 +580,74 @@ void plugin_populate_plugin_actions(struct plugin *plugin, struct wl_list *resul
 	}
 }
 
+void plugin_populate_all(struct plugin *plugin, struct wl_list *results)
+{
+	wl_list_init(results);
+	
+	if (!plugin) {
+		return;
+	}
+	
+	if (plugin->is_builtin && plugin->populate_fn) {
+		plugin->populate_fn(plugin, results);
+		return;
+	}
+	
+	if (plugin->has_provider) {
+		struct wl_list provider_results;
+		wl_list_init(&provider_results);
+		plugin_run_list_cmd(plugin->list_cmd, plugin->format, plugin->label_field, plugin->value_field,
+			plugin->provider_action.on_select, plugin->provider_action.template, plugin->provider_action.as,
+			&provider_results);
+		
+		struct nav_result *pr;
+		wl_list_for_each(pr, &provider_results, link) {
+			struct nav_result *copy = nav_result_create();
+			strncpy(copy->label, pr->label, NAV_LABEL_MAX - 1);
+			strncpy(copy->value, pr->value, NAV_VALUE_MAX - 1);
+			strncpy(copy->source_plugin, plugin->name, NAV_NAME_MAX - 1);
+			copy->action = pr->action;
+			if (pr->action.on_select) {
+				copy->action.on_select = action_def_copy(pr->action.on_select);
+			}
+			wl_list_insert(results, &copy->link);
+		}
+		nav_results_destroy(&provider_results);
+	}
+	
+	struct plugin_action *action;
+	wl_list_for_each(action, &plugin->actions, link) {
+		struct nav_result *res = nav_result_create();
+		strncpy(res->label, action->label, NAV_LABEL_MAX - 1);
+		strncpy(res->value, action->label, NAV_VALUE_MAX - 1);
+		strncpy(res->source_plugin, plugin->name, NAV_NAME_MAX - 1);
+		res->action = action->action;
+		if (action->action.on_select) {
+			res->action.on_select = action_def_copy(action->action.on_select);
+		}
+		wl_list_insert(results, &res->link);
+	}
+}
+
+struct plugin *plugin_match_prefix(const char *prefix)
+{
+	if (!prefix || !prefix[0]) {
+		return NULL;
+	}
+	
+	size_t prefix_len = strlen(prefix);
+	struct plugin *p;
+	wl_list_for_each(p, &plugins, link) {
+		if (!p->deps_satisfied) {
+			continue;
+		}
+		if (strncasecmp(p->name, prefix, prefix_len) == 0) {
+			return p;
+		}
+	}
+	return NULL;
+}
+
 static bool parse_action_from_json(json_parser_t *p, struct action_def *action)
 {
 	if (!json_object_begin(p)) {
