@@ -8,6 +8,7 @@ _hypr-tofi()
 	words=(
 		--help
 		--config
+		--filter
 		--plugins
 		--entry
 		--anchor
@@ -41,7 +42,7 @@ _hypr-tofi()
 			;;
 	esac
 	case "${cur}" in
-		-[chpe])
+		-[chfpe])
 			COMPREPLY=($cur)
 			;;
 		*)

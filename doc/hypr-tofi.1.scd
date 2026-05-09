@@ -27,9 +27,15 @@ to teleport directly to it (e.g. *calc:*, *tmux:*, *url:*).
 *-c, --config* <path>
 	Config file path. Default: _$XDG_CONFIG_HOME/hypr-tofi/config_
 
-*-p, --plugins* <filter>
-	Comma-separated plugin filter. Use *all* to enable all, prefix
-	with *-* to exclude. Example: *all,-drun* or *tmux,wifi*
+*-f, --filter* <filter>
+	Filter global plugins on root menu. Comma-separated.
+	Use *all* to enable all, prefix with *-* to exclude.
+	Example: *all,-drun* or *tmux,wifi*
+
+*-p, --plugins* <list>
+	Show only these plugins as the root menu. Comma-separated
+	plugin names. Esc closes the window.
+	Example: *tmux-freeze,tmux-unfreeze*
 
 *-e, --entry* <plugin>
 	Teleport directly to a plugin at startup. The window closes when

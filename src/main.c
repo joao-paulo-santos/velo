@@ -832,7 +832,8 @@ static void usage(bool err)
 "Options:\n"
 "  -h, --help                  Print this message and exit.\n"
 "  -c, --config <path>         Specify a config file.\n"
-"  -p, --plugins <plugins>     Filter plugins (comma-separated: apps,windows,all,-plugin).\n"
+"  -f, --filter <plugins>     Filter plugins (comma-separated: all,-drun,tmux,wifi).\n"
+"  -p, --plugins <list>       Show only these plugins as root menu.\n"
 "  -e, --entry <plugin>       Teleport directly to a plugin's scene at startup.\n"
 "      --font <name>           Font name.\n"
 "      --font-size <px>        Font size.\n"
@@ -857,6 +858,7 @@ static void usage(bool err)
 const struct option long_options[] = {
 	{"help", no_argument, NULL, 'h'},
 	{"config", required_argument, NULL, 'c'},
+	{"filter", required_argument, NULL, 'f'},
 	{"plugins", required_argument, NULL, 'p'},
 	{"entry", required_argument, NULL, 'e'},
 	{"anchor", required_argument, NULL, 0},
@@ -878,14 +880,15 @@ const struct option long_options[] = {
 	{"padding", required_argument, NULL, 0},
 	{NULL, 0, NULL, 0}
 };
-const char *short_options = ":hc:p:e:";
+const char *short_options = ":hc:f:p:e:";
 
-static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin)
+static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
 {
 
 	bool load_default_config = true;
 	int option_index = 0;
 	*entry_plugin = NULL;
+	*plugin_list = NULL;
 
 	/* Handle errors ourselves. */
 	opterr = 0;
@@ -900,8 +903,10 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 		} else if (opt == 'c') {
 			config_load(tofi, optarg);
 			load_default_config = false;
-		} else if (opt == 'p') {
+		} else if (opt == 'f') {
 			plugin_apply_filter(optarg);
+		} else if (opt == 'p') {
+			*plugin_list = optarg;
 		} else if (opt == 'e') {
 			*entry_plugin = optarg;
 		} else if (opt == ':') {
@@ -1834,7 +1839,8 @@ int main(int argc, char *argv[])
 	log_debug("Loaded %zu plugins.\n", plugin_count());
 	
 	const char *entry_plugin = NULL;
-	parse_args(&tofi, argc, argv, &entry_plugin);
+	const char *plugin_list = NULL;
+	parse_args(&tofi, argc, argv, &entry_plugin, &plugin_list);
 	log_debug("Config done.\n");
 
 	/*
@@ -2072,7 +2078,31 @@ int main(int argc, char *argv[])
 	
 	struct string_ref_vec commands = string_ref_vec_create();
 	
-	plugin_populate_results(&tofi.base_results);
+	if (plugin_list) {
+		wl_list_init(&tofi.base_results);
+		char *copy = xstrdup(plugin_list);
+		char *saveptr = NULL;
+		char *token = strtok_r(copy, ",", &saveptr);
+		while (token) {
+			while (*token == ' ') token++;
+			struct plugin *p = plugin_get(token);
+			if (p && p->deps_satisfied) {
+				struct nav_result *res = nav_result_create();
+				const char *label = p->display_label[0] ? p->display_label : p->name;
+				strncpy(res->label, label, NAV_LABEL_MAX - 1);
+				strncpy(res->value, label, NAV_VALUE_MAX - 1);
+				strncpy(res->source_plugin, p->name, NAV_NAME_MAX - 1);
+				res->action.selection_type = SELECTION_PLUGIN;
+				res->action.execution_type = EXECUTION_EXEC;
+				strncpy(res->action.plugin_ref, p->name, NAV_NAME_MAX - 1);
+				wl_list_insert(tofi.base_results.prev, &res->link);
+			}
+			token = strtok_r(NULL, ",", &saveptr);
+		}
+		free(copy);
+	} else {
+		plugin_populate_results(&tofi.base_results);
+	}
 	int plugin_result_count = 0;
 	struct nav_result *pr;
 	wl_list_for_each(pr, &tofi.base_results, link) {

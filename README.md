@@ -52,8 +52,11 @@ hypr-tofi
 # Launch directly into app list (like rofi -show drun)
 hypr-tofi -e drun
 
-# Filter which plugins appear on root menu
-hypr-tofi -p tmux,wifi
+# Show only specific plugins as root menu
+hypr-tofi -p tmux-freeze,tmux-unfreeze
+
+# Filter which global plugins appear on root menu
+hypr-tofi -f all,-drun
 ```
 
 ### With Hyprland
