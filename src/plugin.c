@@ -30,7 +30,7 @@ void plugin_register_builtin(struct plugin *plugin)
 	plugin->loaded = true;
 	plugin->enabled = true;
 	plugin->deps_satisfied = true;
-	wl_list_insert(&plugins, &plugin->link);
+	wl_list_insert(plugins.prev, &plugin->link);
 }
 
 void plugin_set_all_enabled(bool enabled)
@@ -54,21 +54,21 @@ void plugin_apply_filter(const char *filter_string)
 	if (!filter_string || !*filter_string) {
 		return;
 	}
-	
+
 	plugin_set_all_enabled(false);
-	
+
 	char *copy = xstrdup(filter_string);
 	char *saveptr = NULL;
 	char *token = strtok_r(copy, ",", &saveptr);
-	
+
 	while (token != NULL) {
 		while (*token == ' ') token++;
-		
+
 		bool is_exclude = (token[0] == '-');
 		if (is_exclude) {
 			token++;
 		}
-		
+
 		if (strcmp(token, "all") == 0) {
 			if (is_exclude) {
 				plugin_set_all_enabled(false);
@@ -78,10 +78,10 @@ void plugin_apply_filter(const char *filter_string)
 		} else {
 			plugin_set_enabled(token, !is_exclude);
 		}
-		
+
 		token = strtok_r(NULL, ",", &saveptr);
 	}
-	
+
 	free(copy);
 }
 
@@ -96,15 +96,6 @@ void plugin_destroy(void)
 				}
 				free(p->depends);
 			}
-			
-			struct plugin_action *a, *atmp;
-			wl_list_for_each_safe(a, atmp, &p->actions, link) {
-				wl_list_remove(&a->link);
-				action_def_destroy(a->action.on_select);
-				free(a);
-			}
-			
-			action_def_destroy(p->provider_action.on_select);
 			free(p);
 		}
 	}
@@ -123,12 +114,12 @@ static char *trim(char *str)
 static char *parse_string_value(char *value)
 {
 	value = trim(value);
-	
+
 	if (*value == '\'') {
 		value++;
 		char *end = strrchr(value, '\'');
 		if (end) *end = '\0';
-		
+
 		char *read = value;
 		char *write = value;
 		while (*read) {
@@ -142,12 +133,12 @@ static char *parse_string_value(char *value)
 		*write = '\0';
 		return value;
 	}
-	
+
 	if (*value == '"') {
 		value++;
 		char *end = strrchr(value, '"');
 		if (end) *end = '\0';
-		
+
 		char *read = value;
 		char *write = value;
 		while (*read) {
@@ -169,7 +160,7 @@ static char *parse_string_value(char *value)
 		*write = '\0';
 		return value;
 	}
-	
+
 	return value;
 }
 
@@ -177,11 +168,11 @@ static int parse_string_array(char *value, char **out, size_t max)
 {
 	value = trim(value);
 	if (*value != '[') return 0;
-	
+
 	value++;
 	int count = 0;
 	char *token = strtok(value, ",]");
-	
+
 	while (token && count < (int)max) {
 		token = trim(token);
 		token = parse_string_value(token);
@@ -190,7 +181,29 @@ static int parse_string_array(char *value, char **out, size_t max)
 		}
 		token = strtok(NULL, ",]");
 	}
-	
+
+	return count;
+}
+
+static int parse_children_array(char *value, char out[][PLUGIN_NAME_MAX], size_t max)
+{
+	value = trim(value);
+	if (*value != '[') return 0;
+
+	value++;
+	int count = 0;
+	char *token = strtok(value, ",]");
+
+	while (token && count < (int)max) {
+		token = trim(token);
+		token = parse_string_value(token);
+		if (*token) {
+			strncpy(out[count], token, PLUGIN_NAME_MAX - 1);
+			count++;
+		}
+		token = strtok(NULL, ",]");
+	}
+
 	return count;
 }
 
@@ -200,18 +213,19 @@ static bool parse_bool_value(char *value)
 	return (strcmp(value, "true") == 0 || strcmp(value, "yes") == 0 || strcmp(value, "1") == 0);
 }
 
-static selection_type_t parse_selection_type(const char *value)
+static plugin_type_t parse_plugin_type(const char *value)
 {
-	if (strcmp(value, "input") == 0) return SELECTION_INPUT;
-	if (strcmp(value, "select") == 0) return SELECTION_SELECT;
-	if (strcmp(value, "plugin") == 0) return SELECTION_PLUGIN;
-	if (strcmp(value, "feedback") == 0) return SELECTION_FEEDBACK;
-	return SELECTION_SELF;
+	if (strcmp(value, "list") == 0) return PLUGIN_LIST;
+	if (strcmp(value, "select") == 0) return PLUGIN_SELECT;
+	if (strcmp(value, "input") == 0) return PLUGIN_INPUT;
+	if (strcmp(value, "feedback") == 0) return PLUGIN_FEEDBACK;
+	if (strcmp(value, "exec") == 0) return PLUGIN_EXEC;
+	return PLUGIN_LIST;
 }
 
 static execution_type_t parse_execution_type(const char *value)
 {
-	if (strcmp(value, "return") == 0) return EXECUTION_RETURN;
+	(void)value;
 	return EXECUTION_EXEC;
 }
 
@@ -225,10 +239,10 @@ static bool check_dependency(const char *binary)
 {
 	char *path_env = getenv("PATH");
 	if (!path_env) return false;
-	
+
 	char *paths = xstrdup(path_env);
 	char *dir = strtok(paths, ":");
-	
+
 	while (dir) {
 		char full_path[512];
 		snprintf(full_path, sizeof(full_path), "%s/%s", dir, binary);
@@ -238,7 +252,7 @@ static bool check_dependency(const char *binary)
 		}
 		dir = strtok(NULL, ":");
 	}
-	
+
 	free(paths);
 	return false;
 }
@@ -257,56 +271,20 @@ static bool check_dependencies(struct plugin *plugin)
 static struct plugin *plugin_create(void)
 {
 	struct plugin *p = xcalloc(1, sizeof(*p));
-	p->global = true;
+	p->type = PLUGIN_LIST;
+	p->global = false;
 	p->enabled = true;
 	p->is_builtin = false;
-	p->has_provider = false;
 	p->loaded = false;
 	p->deps_satisfied = false;
 	p->depends = NULL;
 	p->depends_count = 0;
 	p->populate_fn = NULL;
-	wl_list_init(&p->actions);
+	p->execution_type = EXECUTION_EXEC;
+	p->show_input = true;
+	p->history_limit = 20;
+	p->persist_history = false;
 	return p;
-}
-
-static void parse_action_fields(char *key, char *value, struct action_def *action, bool is_on_select)
-{
-	if (strcmp(key, "selection_type") == 0) {
-		action->selection_type = parse_selection_type(parse_string_value(value));
-	} else if (strcmp(key, "execution_type") == 0) {
-		action->execution_type = parse_execution_type(parse_string_value(value));
-	} else if (strcmp(key, "as") == 0) {
-		snprintf(action->as, NAV_KEY_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "template") == 0) {
-		snprintf(action->template, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "prompt") == 0) {
-		snprintf(action->prompt, NAV_PROMPT_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "list_cmd") == 0) {
-		snprintf(action->list_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "format") == 0) {
-		action->format = parse_format(parse_string_value(value));
-	} else if (strcmp(key, "label_field") == 0) {
-		snprintf(action->label_field, NAV_FIELD_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "value_field") == 0) {
-		snprintf(action->value_field, NAV_FIELD_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "plugin") == 0) {
-		snprintf(action->plugin_ref, NAV_NAME_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "eval_cmd") == 0) {
-		snprintf(action->eval_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "display_input") == 0) {
-		snprintf(action->display_input, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "display_result") == 0) {
-		snprintf(action->display_result, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
-	} else if (strcmp(key, "show_input") == 0) {
-		action->show_input = parse_bool_value(value);
-	} else if (strcmp(key, "history_limit") == 0) {
-		action->history_limit = atoi(value);
-	} else if (strcmp(key, "persist_history") == 0) {
-		action->persist_history = parse_bool_value(value);
-	} else if (strcmp(key, "history_name") == 0) {
-		snprintf(action->history_name, NAV_NAME_MAX, "%s", parse_string_value(value));
-	}
 }
 
 static struct plugin *parse_toml_file(const char *path)
@@ -316,96 +294,91 @@ static struct plugin *parse_toml_file(const char *path)
 		log_error("Failed to open plugin file: %s\n", path);
 		return NULL;
 	}
-	
+
 	struct plugin *plugin = plugin_create();
-	struct plugin_action *current_action = NULL;
-	struct action_def *parent_action = NULL;
 	char line[MAX_LINE_LEN];
-	
+
 	while (fgets(line, sizeof(line), fp)) {
 		char *trimmed = trim(line);
-		
+
 		if (*trimmed == '\0' || *trimmed == '#') continue;
-		
-		if (strcmp(trimmed, "[[action]]") == 0) {
-			current_action = xcalloc(1, sizeof(*current_action));
-			current_action->action.selection_type = SELECTION_SELF;
-			current_action->action.execution_type = EXECUTION_EXEC;
-			current_action->action.show_input = true;
-			current_action->action.history_limit = 20;
-			current_action->action.persist_history = false;
-			wl_list_insert(&plugin->actions, &current_action->link);
-			parent_action = &current_action->action;
-			continue;
-		}
-		
-		if (strncmp(trimmed, "[action.", 8) == 0) {
-			continue;
-		}
-		
+
 		char *eq = strchr(trimmed, '=');
 		if (!eq) continue;
-		
+
 		*eq = '\0';
 		char *key = trim(trimmed);
 		char *value = trim(eq + 1);
-		
-		bool is_on_select_field = strncmp(key, "on_select.", 10) == 0;
-		if (is_on_select_field) {
-			char *subkey = key + 10;
-			
-			if (!parent_action->on_select) {
-				parent_action->on_select = action_def_create();
-			}
-			parse_action_fields(subkey, value, parent_action->on_select, true);
-		} else if (current_action) {
-			if (strcmp(key, "label") == 0) {
-				snprintf(current_action->label, NAV_LABEL_MAX, "%s", parse_string_value(value));
-			} else if (strcmp(key, "display_prefix") == 0) {
-				snprintf(current_action->display_prefix, NAV_LABEL_MAX, "%s", parse_string_value(value));
-			} else {
-				parse_action_fields(key, value, &current_action->action, false);
-			}
-		} else {
-			if (strcmp(key, "name") == 0) {
-				snprintf(plugin->name, PLUGIN_NAME_MAX, "%s", parse_string_value(value));
-			} else if (strcmp(key, "display_prefix") == 0) {
-				snprintf(plugin->display_prefix, NAV_LABEL_MAX, "%s", parse_string_value(value));
-			} else if (strcmp(key, "context_name") == 0) {
-				snprintf(plugin->context_name, NAV_LABEL_MAX, "%s", parse_string_value(value));
-			} else if (strcmp(key, "global") == 0) {
-				plugin->global = parse_bool_value(value);
-			} else if (strcmp(key, "depends") == 0) {
-				plugin->depends = xcalloc(MAX_ARRAY_ITEMS, sizeof(char *));
-				plugin->depends_count = parse_string_array(value, plugin->depends, MAX_ARRAY_ITEMS);
-			} else if (strcmp(key, "list_cmd") == 0) {
-				snprintf(plugin->list_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
-				plugin->has_provider = true;
-			} else if (strcmp(key, "format") == 0) {
-				plugin->format = parse_format(parse_string_value(value));
-			} else if (strcmp(key, "label_field") == 0) {
-				snprintf(plugin->label_field, NAV_FIELD_MAX, "%s", parse_string_value(value));
-			} else if (strcmp(key, "value_field") == 0) {
-				snprintf(plugin->value_field, NAV_FIELD_MAX, "%s", parse_string_value(value));
-			} else if (strcmp(key, "template") == 0) {
-				snprintf(plugin->provider_action.template, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
-			} else if (strcmp(key, "as") == 0) {
-				snprintf(plugin->provider_action.as, NAV_KEY_MAX, "%s", parse_string_value(value));
-			}
+
+		if (strcmp(key, "name") == 0) {
+			snprintf(plugin->name, PLUGIN_NAME_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "display_label") == 0) {
+			snprintf(plugin->display_label, NAV_LABEL_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "display_prefix") == 0) {
+			snprintf(plugin->display_prefix, NAV_LABEL_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "context_name") == 0) {
+			snprintf(plugin->context_name, NAV_LABEL_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "global") == 0) {
+			plugin->global = parse_bool_value(value);
+		} else if (strcmp(key, "depends") == 0) {
+			plugin->depends = xcalloc(MAX_ARRAY_ITEMS, sizeof(char *));
+			plugin->depends_count = parse_string_array(value, plugin->depends, MAX_ARRAY_ITEMS);
+		} else if (strcmp(key, "type") == 0) {
+			plugin->type = parse_plugin_type(parse_string_value(value));
+		} else if (strcmp(key, "children") == 0) {
+			plugin->children_count = parse_children_array(value, plugin->children, MAX_CHILDREN);
+		} else if (strcmp(key, "template") == 0) {
+			snprintf(plugin->template, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "as") == 0) {
+			snprintf(plugin->as, NAV_KEY_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "execution_type") == 0) {
+			plugin->execution_type = parse_execution_type(parse_string_value(value));
+		} else if (strcmp(key, "list_cmd") == 0) {
+			snprintf(plugin->list_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "format") == 0) {
+			plugin->format = parse_format(parse_string_value(value));
+		} else if (strcmp(key, "label_field") == 0) {
+			snprintf(plugin->label_field, NAV_FIELD_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "value_field") == 0) {
+			snprintf(plugin->value_field, NAV_FIELD_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "prompt") == 0) {
+			snprintf(plugin->prompt, NAV_PROMPT_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "sensitive") == 0) {
+			plugin->sensitive = parse_bool_value(value);
+		} else if (strcmp(key, "next") == 0) {
+			snprintf(plugin->next, PLUGIN_NAME_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "return") == 0) {
+			plugin->return_to_parent = parse_bool_value(value);
+		} else if (strcmp(key, "teleport") == 0) {
+			plugin->teleport = parse_bool_value(value);
+		} else if (strcmp(key, "eval_cmd") == 0) {
+			snprintf(plugin->eval_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "display_input") == 0) {
+			snprintf(plugin->display_input, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "display_result") == 0) {
+			snprintf(plugin->display_result, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "show_input") == 0) {
+			plugin->show_input = parse_bool_value(value);
+		} else if (strcmp(key, "history_limit") == 0) {
+			plugin->history_limit = atoi(value);
+		} else if (strcmp(key, "persist_history") == 0) {
+			plugin->persist_history = parse_bool_value(value);
+		} else if (strcmp(key, "history_name") == 0) {
+			snprintf(plugin->history_name, NAV_NAME_MAX, "%s", parse_string_value(value));
 		}
 	}
-	
+
 	fclose(fp);
-	
+
 	if (!plugin->name[0]) {
 		log_error("Plugin missing name: %s\n", path);
 		free(plugin);
 		return NULL;
 	}
-	
+
 	plugin->deps_satisfied = check_dependencies(plugin);
 	plugin->loaded = true;
-	
+
 	return plugin;
 }
 
@@ -416,27 +389,36 @@ void plugin_load_directory(const char *path)
 		log_debug("Plugin directory not found: %s\n", path);
 		return;
 	}
-	
+
 	struct dirent *entry;
 	while ((entry = readdir(dir)) != NULL) {
-		if (entry->d_type != DT_REG && entry->d_type != DT_LNK) continue;
-		
-		char *ext = strrchr(entry->d_name, '.');
-		if (!ext || strcmp(ext, ".toml") != 0) continue;
-		
 		char full_path[PLUGIN_PATH_MAX];
 		snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
-		
+
+		if (entry->d_type == DT_DIR) {
+			if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+				continue;
+			}
+			plugin_load_directory(full_path);
+			continue;
+		}
+
+		if (entry->d_type != DT_REG && entry->d_type != DT_LNK) continue;
+
+		char *ext = strrchr(entry->d_name, '.');
+		if (!ext || strcmp(ext, ".toml") != 0) continue;
+
 		struct plugin *plugin = parse_toml_file(full_path);
 		if (plugin) {
-			wl_list_insert(&plugins, &plugin->link);
-			log_debug("Loaded plugin: %s (global=%s, deps=%s)\n",
+		wl_list_insert(plugins.prev, &plugin->link);
+		log_debug("Loaded plugin: %s (type=%d, global=%s, deps=%s)\n",
 				plugin->name,
+				plugin->type,
 				plugin->global ? "yes" : "no",
 				plugin->deps_satisfied ? "ok" : "missing");
 		}
 	}
-	
+
 	closedir(dir);
 }
 
@@ -467,12 +449,12 @@ static char *run_command(const char *cmd)
 	if (!fp) {
 		return NULL;
 	}
-	
+
 	char *buffer = NULL;
 	size_t buffer_size = 0;
 	size_t total = 0;
 	char chunk[1024];
-	
+
 	while (fgets(chunk, sizeof(chunk), fp)) {
 		size_t chunk_len = strlen(chunk);
 		char *new_buffer = realloc(buffer, buffer_size + chunk_len + 1);
@@ -486,257 +468,217 @@ static char *run_command(const char *cmd)
 		total += chunk_len;
 		buffer_size += chunk_len;
 	}
-	
+
 	pclose(fp);
-	
+
 	if (buffer) {
 		buffer[total] = '\0';
 	}
-	
-	return buffer;
-}
 
-static bool extract_json_field(json_parser_t *p, const char *field_name, char *out, size_t max_len)
-{
-	json_parser_t saved = *p;
-	char key[256];
-	bool has_more;
-	
-	while (json_object_next(p, key, sizeof(key), &has_more) && has_more) {
-		if (strcmp(key, field_name) == 0) {
-			bool result = json_parse_string(p, out, max_len);
-			return result;
-		} else {
-			json_skip_value(p);
-		}
-		if (json_peek_char(p, ',')) {
-			json_expect_char(p, ',');
-		}
-	}
-	
-	*p = saved;
-	return false;
+	return buffer;
 }
 
 void plugin_populate_results(struct wl_list *results)
 {
 	wl_list_init(results);
-	
+
 	struct plugin *p;
 	wl_list_for_each(p, &plugins, link) {
 		if (!p->global || !p->enabled || !p->deps_satisfied) {
 			continue;
 		}
-		
+
 		if (p->is_builtin && p->populate_fn) {
 			p->populate_fn(p, results);
 			continue;
 		}
-		
-		if (p->has_provider) {
-			struct wl_list provider_results;
-			wl_list_init(&provider_results);
-			plugin_run_list_cmd(p->list_cmd, p->format, p->label_field, p->value_field,
-				p->provider_action.on_select, p->provider_action.template, p->provider_action.as,
-				&provider_results);
-			
-			struct nav_result *pr;
-			wl_list_for_each(pr, &provider_results, link) {
-				struct nav_result *copy = nav_result_create();
-				strncpy(copy->label, pr->label, NAV_LABEL_MAX - 1);
-				strncpy(copy->value, pr->value, NAV_VALUE_MAX - 1);
-				strncpy(copy->source_plugin, p->name, NAV_NAME_MAX - 1);
-				copy->action = pr->action;
-				if (pr->action.on_select) {
-					copy->action.on_select = action_def_copy(pr->action.on_select);
-				}
-				wl_list_insert(results, &copy->link);
-			}
-			nav_results_destroy(&provider_results);
-		}
-		
-		struct plugin_action *action;
-		wl_list_for_each(action, &p->actions, link) {
-			struct nav_result *res = nav_result_create();
-			strncpy(res->label, action->label, NAV_LABEL_MAX - 1);
-			strncpy(res->value, action->label, NAV_VALUE_MAX - 1);
-			strncpy(res->source_plugin, p->name, NAV_NAME_MAX - 1);
-			res->action = action->action;
-			if (action->action.on_select) {
-				res->action.on_select = action_def_copy(action->action.on_select);
-			}
-			wl_list_insert(results, &res->link);
-		}
+
+		struct nav_result *res = nav_result_create();
+		const char *label = p->display_label[0] ? p->display_label : p->name;
+		strncpy(res->label, label, NAV_LABEL_MAX - 1);
+		strncpy(res->value, label, NAV_VALUE_MAX - 1);
+		strncpy(res->source_plugin, p->name, NAV_NAME_MAX - 1);
+		res->action.selection_type = SELECTION_PLUGIN;
+		res->action.execution_type = EXECUTION_EXEC;
+		strncpy(res->action.plugin_ref, p->name, NAV_NAME_MAX - 1);
+		wl_list_insert(results->prev, &res->link);
 	}
 }
 
-void plugin_populate_plugin_actions(struct plugin *plugin, struct wl_list *results)
+void plugin_populate_from_children(struct plugin *plugin, struct wl_list *results)
 {
 	wl_list_init(results);
-	
-	if (!plugin || !plugin->deps_satisfied) {
-		return;
-	}
-	
-	struct plugin_action *action;
-	wl_list_for_each(action, &plugin->actions, link) {
+
+	for (size_t i = 0; i < plugin->children_count; i++) {
+		struct plugin *child = plugin_get(plugin->children[i]);
+		if (!child || !child->deps_satisfied) continue;
 		struct nav_result *res = nav_result_create();
-		strncpy(res->label, action->label, NAV_LABEL_MAX - 1);
-		strncpy(res->value, action->label, NAV_VALUE_MAX - 1);
-		strncpy(res->source_plugin, plugin->name, NAV_NAME_MAX - 1);
-		res->action = action->action;
-		if (action->action.on_select) {
-			res->action.on_select = action_def_copy(action->action.on_select);
-		}
-		wl_list_insert(results, &res->link);
+		const char *label = child->display_label[0] ? child->display_label : child->name;
+		strncpy(res->label, label, NAV_LABEL_MAX - 1);
+		strncpy(res->value, label, NAV_VALUE_MAX - 1);
+		strncpy(res->source_plugin, child->name, NAV_NAME_MAX - 1);
+		res->action.selection_type = SELECTION_PLUGIN;
+		res->action.execution_type = EXECUTION_EXEC;
+		strncpy(res->action.plugin_ref, child->name, NAV_NAME_MAX - 1);
+		wl_list_insert(results->prev, &res->link);
 	}
+}
+
+struct plugin *plugin_match_prefix(const char *prefix)
+{
+	if (!prefix || !prefix[0]) {
+		return NULL;
+	}
+
+	size_t prefix_len = strlen(prefix);
+	struct plugin *p;
+	wl_list_for_each(p, &plugins, link) {
+		if (!p->deps_satisfied || !p->teleport) {
+			continue;
+		}
+		if (strncasecmp(p->name, prefix, prefix_len) == 0) {
+			return p;
+		}
+	}
+	return NULL;
 }
 
 void plugin_run_list_cmd(const char *list_cmd, format_t format,
 	const char *label_field, const char *value_field,
-	struct action_def *on_select, const char *template, const char *as,
+	const char *template, const char *as,
 	struct wl_list *results)
 {
 	wl_list_init(results);
-	
+
 	if (builtin_is_builtin(list_cmd)) {
-		builtin_run_list_cmd(list_cmd, results);
+		builtin_run_list_cmd(list_cmd, template, as, results);
 		return;
 	}
-	
+
 	char *output = run_command(list_cmd);
 	if (!output) {
 		return;
 	}
-	
+
 	if (format == FORMAT_LINES) {
 		char *line = strtok(output, "\n");
 		while (line) {
-			char *trimmed = trim(line);
-			if (*trimmed) {
+			char *trimmed_line = trim(line);
+			if (*trimmed_line) {
 				struct nav_result *res = nav_result_create();
-				strncpy(res->label, trimmed, NAV_LABEL_MAX - 1);
-				strncpy(res->value, trimmed, NAV_VALUE_MAX - 1);
+				strncpy(res->label, trimmed_line, NAV_LABEL_MAX - 1);
+				strncpy(res->value, trimmed_line, NAV_VALUE_MAX - 1);
 				res->action.selection_type = SELECTION_SELF;
 				res->action.execution_type = EXECUTION_EXEC;
-				
-				if (on_select) {
-					res->action = *on_select;
-					if (on_select->on_select) {
-						res->action.on_select = action_def_copy(on_select->on_select);
-					}
-				} else {
-					if (template) {
-						strncpy(res->action.template, template, NAV_TEMPLATE_MAX - 1);
-					}
-					if (as) {
-						strncpy(res->action.as, as, NAV_KEY_MAX - 1);
-					}
+				if (template) {
+					strncpy(res->action.template, template, NAV_TEMPLATE_MAX - 1);
 				}
-				
-				wl_list_insert(results, &res->link);
+				if (as) {
+					strncpy(res->action.as, as, NAV_KEY_MAX - 1);
+				}
+				wl_list_insert(results->prev, &res->link);
 			}
 			line = strtok(NULL, "\n");
 		}
 	} else if (format == FORMAT_JSON) {
 		json_parser_t parser;
 		json_parser_init(&parser, output);
-		
+
 		if (json_peek_char(&parser, '[')) {
 			if (!json_array_begin(&parser)) {
 				free(output);
 				return;
 			}
-			
+
 			bool has_more;
 			while (json_array_next(&parser, &has_more) && has_more) {
 				if (!json_object_begin(&parser)) break;
-				
+
 				char label_val[NAV_LABEL_MAX] = "";
 				char value_val[NAV_LABEL_MAX] = "";
-				
-				json_parser_t obj_parser = parser;
-				extract_json_field(&obj_parser, label_field, label_val, sizeof(label_val));
-				obj_parser = parser;
-				extract_json_field(&obj_parser, value_field, value_val, sizeof(value_val));
-				
-				json_skip_value(&parser);
+
+				char key[256];
+				bool obj_has_more;
+				while (json_object_next(&parser, key, sizeof(key), &obj_has_more) && obj_has_more) {
+					if (strcmp(key, label_field) == 0) {
+						json_parse_string(&parser, label_val, sizeof(label_val));
+					} else if (strcmp(key, value_field) == 0) {
+						json_parse_string(&parser, value_val, sizeof(value_val));
+					} else {
+						json_skip_value(&parser);
+					}
+					if (json_peek_char(&parser, ',')) {
+						json_expect_char(&parser, ',');
+					}
+				}
+
 				json_object_end(&parser);
-				
+
 				if (json_peek_char(&parser, ',')) {
 					json_expect_char(&parser, ',');
 				}
-				
+
 				if (label_val[0]) {
 					struct nav_result *res = nav_result_create();
 					strncpy(res->label, label_val, NAV_LABEL_MAX - 1);
 					strncpy(res->value, value_val[0] ? value_val : label_val, NAV_VALUE_MAX - 1);
 					res->action.selection_type = SELECTION_SELF;
 					res->action.execution_type = EXECUTION_EXEC;
-					
-					if (on_select) {
-						res->action = *on_select;
-						if (on_select->on_select) {
-							res->action.on_select = action_def_copy(on_select->on_select);
-						}
-					} else {
-						if (template) {
-							strncpy(res->action.template, template, NAV_TEMPLATE_MAX - 1);
-						}
-						if (as) {
-							strncpy(res->action.as, as, NAV_KEY_MAX - 1);
-						}
+					if (template) {
+						strncpy(res->action.template, template, NAV_TEMPLATE_MAX - 1);
 					}
-					
-					wl_list_insert(results, &res->link);
+					if (as) {
+						strncpy(res->action.as, as, NAV_KEY_MAX - 1);
+					}
+					wl_list_insert(results->prev, &res->link);
 				}
 			}
-			
+
 			json_array_end(&parser);
 		} else {
 			while (*parser.pos) {
 				json_skip_ws(&parser);
 				if (!*parser.pos) break;
-				
+
 				if (!json_object_begin(&parser)) break;
-				
+
 				char label_val[NAV_LABEL_MAX] = "";
 				char value_val[NAV_LABEL_MAX] = "";
-				
-				json_parser_t obj_parser = parser;
-				extract_json_field(&obj_parser, label_field, label_val, sizeof(label_val));
-				obj_parser = parser;
-				extract_json_field(&obj_parser, value_field, value_val, sizeof(value_val));
-				
-				json_skip_value(&parser);
+
+				char key[256];
+				bool obj_has_more;
+				while (json_object_next(&parser, key, sizeof(key), &obj_has_more) && obj_has_more) {
+					if (strcmp(key, label_field) == 0) {
+						json_parse_string(&parser, label_val, sizeof(label_val));
+					} else if (strcmp(key, value_field) == 0) {
+						json_parse_string(&parser, value_val, sizeof(value_val));
+					} else {
+						json_skip_value(&parser);
+					}
+					if (json_peek_char(&parser, ',')) {
+						json_expect_char(&parser, ',');
+					}
+				}
+
 				json_object_end(&parser);
-				
+
 				if (label_val[0]) {
 					struct nav_result *res = nav_result_create();
 					strncpy(res->label, label_val, NAV_LABEL_MAX - 1);
 					strncpy(res->value, value_val[0] ? value_val : label_val, NAV_VALUE_MAX - 1);
 					res->action.selection_type = SELECTION_SELF;
 					res->action.execution_type = EXECUTION_EXEC;
-					
-					if (on_select) {
-						res->action = *on_select;
-						if (on_select->on_select) {
-							res->action.on_select = action_def_copy(on_select->on_select);
-						}
-					} else {
-						if (template) {
-							strncpy(res->action.template, template, NAV_TEMPLATE_MAX - 1);
-						}
-						if (as) {
-							strncpy(res->action.as, as, NAV_KEY_MAX - 1);
-						}
+					if (template) {
+						strncpy(res->action.template, template, NAV_TEMPLATE_MAX - 1);
 					}
-					
+					if (as) {
+						strncpy(res->action.as, as, NAV_KEY_MAX - 1);
+					}
 					wl_list_insert(results, &res->link);
 				}
 			}
 		}
 	}
-	
+
 	free(output);
 }

@@ -19,10 +19,10 @@
 #include "tofi.h"
 #include "builtin.h"
 #include "config.h"
-#include "entry.h"
 #include "input.h"
 #include "log.h"
 #include "plugin.h"
+#include "nav.h"
 #include "nelem.h"
 #include "lock.h"
 #include "scale.h"
@@ -289,23 +289,21 @@ static void wl_pointer_button(
 		return;
 	}
 
-	struct entry *entry = &tofi->window.entry;
-
-	if (entry->result_row_height <= 0 || entry->num_results_drawn == 0) {
+	if (tofi->view_layout.result_row_height <= 0 || tofi->view_state.num_results_drawn == 0) {
 		return;
 	}
 
-	int32_t rel_y = tofi->pointer_y - entry->result_start_y;
+	int32_t rel_y = tofi->pointer_y - tofi->view_layout.result_start_y;
 	if (rel_y < 0) {
 		return;
 	}
 
-	uint32_t clicked_index = (uint32_t)(rel_y / entry->result_row_height);
-	if (clicked_index >= entry->num_results_drawn) {
+	uint32_t clicked_index = (uint32_t)(rel_y / tofi->view_layout.result_row_height);
+	if (clicked_index >= tofi->view_state.num_results_drawn) {
 		return;
 	}
 
-	if (clicked_index == entry->selection) {
+	if (clicked_index == tofi->view_state.selection) {
 		tofi->submit = true;
 	} else {
 		input_select_result(tofi, clicked_index);
@@ -836,6 +834,7 @@ static void usage(bool err)
 "  -h, --help                  Print this message and exit.\n"
 "  -c, --config <path>         Specify a config file.\n"
 "  -p, --plugins <plugins>     Filter plugins (comma-separated: apps,windows,all,-plugin).\n"
+"  -e, --entry <plugin>       Teleport directly to a plugin's scene at startup.\n"
 "      --font <name>           Font name.\n"
 "      --font-size <px>        Font size.\n"
 "      --prompt-text <string>  Prompt text.\n"
@@ -860,6 +859,7 @@ const struct option long_options[] = {
 	{"help", no_argument, NULL, 'h'},
 	{"config", required_argument, NULL, 'c'},
 	{"plugins", required_argument, NULL, 'p'},
+	{"entry", required_argument, NULL, 'e'},
 	{"anchor", required_argument, NULL, 0},
 	{"background-color", required_argument, NULL, 0},
 	{"corner-radius", required_argument, NULL, 0},
@@ -879,13 +879,14 @@ const struct option long_options[] = {
 	{"padding", required_argument, NULL, 0},
 	{NULL, 0, NULL, 0}
 };
-const char *short_options = ":hc:p:";
+const char *short_options = ":hc:p:e:";
 
-static void parse_args(struct tofi *tofi, int argc, char *argv[])
+static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin)
 {
 
 	bool load_default_config = true;
 	int option_index = 0;
+	*entry_plugin = NULL;
 
 	/* Handle errors ourselves. */
 	opterr = 0;
@@ -902,6 +903,8 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[])
 			load_default_config = false;
 		} else if (opt == 'p') {
 			plugin_apply_filter(optarg);
+		} else if (opt == 'e') {
+			*entry_plugin = optarg;
 		} else if (opt == ':') {
 			log_error("Option %s requires an argument.\n", argv[optind - 1]);
 			usage(true);
@@ -951,7 +954,7 @@ static struct nav_result *find_nav_result(struct nav_level *level, const char *l
 	return NULL;
 }
 
-static void nav_push_level(struct tofi *tofi, struct nav_level *level)
+void nav_push_level(struct tofi *tofi, struct nav_level *level)
 {
 	wl_list_insert(&tofi->nav_stack, &level->link);
 	tofi->nav_current = level;
@@ -986,26 +989,123 @@ static void nav_pop_level(struct tofi *tofi)
 	nav_level_destroy(current);
 }
 
-static void update_entry_from_level(struct tofi *tofi, struct nav_level *level)
+void update_view_state_from_level(struct tofi *tofi, struct nav_level *level)
 {
-	struct entry *entry = &tofi->window.entry;
-	
-	string_ref_vec_destroy(&entry->results);
-	entry->results = string_ref_vec_create();
+	string_ref_vec_destroy(&tofi->view_state.results);
+	tofi->view_state.results = string_ref_vec_create();
 	
 	struct nav_result *res;
 	wl_list_for_each(res, &level->results, link) {
-		string_ref_vec_add(&entry->results, res->label);
+		string_ref_vec_add(&tofi->view_state.results, res->label);
 	}
-	
-	entry->selection = level->selection;
-	entry->first_result = level->first_result;
-	
-	if (level->mode == SELECTION_INPUT) {
-		snprintf(entry->prompt_text, MAX_PROMPT_LENGTH, "%s", level->display_prompt);
-	} else if (level->display_prompt[0]) {
-		snprintf(entry->prompt_text, MAX_PROMPT_LENGTH, "%s", level->display_prompt);
+	tofi->view_state.selection = level->selection;
+	if (level->display_prompt[0]) {
+		snprintf(tofi->view_state.prompt, VIEW_MAX_PROMPT, "%s", level->display_prompt);
 	}
+}
+
+static void feedback_history_load(struct nav_level *level);
+static void update_entry_from_feedback_level(struct tofi *tofi, struct nav_level *level);
+static void execute_command(const char *template, struct value_dict *dict);
+
+bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_dict *dict)
+{
+	struct view_state *state = &tofi->view_state;
+
+	switch (target->type) {
+	case PLUGIN_LIST: {
+		struct nav_level *new_level = nav_level_create(SELECTION_PLUGIN, dict);
+		strncpy(new_level->plugin_ref, target->name, NAV_NAME_MAX - 1);
+		plugin_populate_from_children(target, &new_level->results);
+		nav_results_copy(&new_level->backup_results, &new_level->results);
+		if (target->context_name[0]) {
+			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
+		}
+		nav_push_level(tofi, new_level);
+		update_view_state_from_level(tofi, new_level);
+		break;
+	}
+	case PLUGIN_SELECT: {
+		struct nav_level *new_level = nav_level_create(SELECTION_SELECT, dict);
+		strncpy(new_level->plugin_ref, target->name, NAV_NAME_MAX - 1);
+		strncpy(new_level->list_cmd, target->list_cmd, NAV_CMD_MAX - 1);
+		new_level->format = target->format;
+		strncpy(new_level->label_field, target->label_field, NAV_FIELD_MAX - 1);
+		strncpy(new_level->value_field, target->value_field, NAV_FIELD_MAX - 1);
+		strncpy(new_level->template, target->template, NAV_TEMPLATE_MAX - 1);
+		strncpy(new_level->as, target->as, NAV_KEY_MAX - 1);
+		new_level->execution_type = target->execution_type;
+		strncpy(new_level->next_plugin, target->next, NAV_NAME_MAX - 1);
+		new_level->return_to_parent = target->return_to_parent;
+		plugin_run_list_cmd(target->list_cmd, target->format,
+			target->label_field, target->value_field,
+			target->template, target->as, &new_level->results);
+		nav_results_copy(&new_level->backup_results, &new_level->results);
+		if (target->context_name[0]) {
+			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
+		}
+		nav_push_level(tofi, new_level);
+		update_view_state_from_level(tofi, new_level);
+		break;
+	}
+	case PLUGIN_INPUT: {
+		struct nav_level *new_level = nav_level_create(SELECTION_INPUT, dict);
+		strncpy(new_level->template, target->template, NAV_TEMPLATE_MAX - 1);
+		strncpy(new_level->prompt, target->prompt, NAV_PROMPT_MAX - 1);
+		strncpy(new_level->as, target->as, NAV_KEY_MAX - 1);
+		new_level->execution_type = target->execution_type;
+		new_level->sensitive = target->sensitive;
+		strncpy(new_level->next_plugin, target->next, NAV_NAME_MAX - 1);
+		new_level->return_to_parent = target->return_to_parent;
+		if (target->context_name[0]) {
+			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
+		} else if (target->prompt[0]) {
+			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s", target->prompt);
+		}
+		nav_push_level(tofi, new_level);
+		update_view_state_from_level(tofi, new_level);
+		state->sensitive = target->sensitive;
+		break;
+	}
+	case PLUGIN_FEEDBACK: {
+		struct nav_level *new_level = nav_level_create(SELECTION_FEEDBACK, dict);
+		strncpy(new_level->eval_cmd, target->eval_cmd, NAV_CMD_MAX - 1);
+		strncpy(new_level->display_input, target->display_input, NAV_TEMPLATE_MAX - 1);
+		strncpy(new_level->display_result, target->display_result, NAV_TEMPLATE_MAX - 1);
+		new_level->show_input = target->show_input;
+		new_level->history_limit = target->history_limit;
+		new_level->persist_history = target->persist_history;
+		if (target->history_name[0]) {
+			strncpy(new_level->history_name, target->history_name, NAV_NAME_MAX - 1);
+		} else {
+			strncpy(new_level->history_name, target->name, NAV_NAME_MAX - 1);
+		}
+		if (target->context_name[0]) {
+			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
+		}
+		wl_list_init(&new_level->results);
+		feedback_history_load(new_level);
+		nav_push_level(tofi, new_level);
+		update_entry_from_feedback_level(tofi, new_level);
+		break;
+	}
+	case PLUGIN_EXEC: {
+		execute_command(target->template, dict);
+		dict_destroy(dict);
+		tofi->closed = true;
+		return true;
+	}
+	}
+
+	state->input_utf32[0] = U'\0';
+	state->input_utf32_length = 0;
+	state->input_utf8[0] = '\0';
+	state->input_utf8_length = 0;
+	state->cursor_position = 0;
+	state->selection = 0;
+	state->first_result = 0;
+	tofi->window.surface.redraw = true;
+	return false;
 }
 
 #define FEEDBACK_HISTORY_DIR "/.config/hypr-tofi/history/"
@@ -1172,21 +1272,17 @@ void feedback_history_save(struct nav_level *level)
 
 static void update_entry_from_feedback_level(struct tofi *tofi, struct nav_level *level)
 {
-	struct entry *entry = &tofi->window.entry;
-	
-	string_ref_vec_destroy(&entry->results);
-	entry->results = string_ref_vec_create();
+	string_ref_vec_destroy(&tofi->view_state.results);
+	tofi->view_state.results = string_ref_vec_create();
 	
 	struct feedback_entry *fe;
 	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&entry->results, fe->content);
+		string_ref_vec_add(&tofi->view_state.results, fe->content);
 	}
-	
-	entry->selection = 0;
-	entry->first_result = 0;
-	
+	tofi->view_state.selection = 0;
+	tofi->view_state.first_result = 0;
 	if (level->display_prompt[0]) {
-		snprintf(entry->prompt_text, MAX_PROMPT_LENGTH, "%s", level->display_prompt);
+		snprintf(tofi->view_state.prompt, VIEW_MAX_PROMPT, "%s", level->display_prompt);
 	}
 }
 
@@ -1269,17 +1365,16 @@ static void feedback_spawn_process(struct tofi *tofi, struct nav_level *level)
 	level->input_buffer[0] = '\0';
 	level->input_length = 0;
 	
-	struct entry *entry = &tofi->window.entry;
-	entry->input_utf32_length = 0;
-	entry->input_utf8_length = 0;
-	entry->input_utf8[0] = '\0';
-	entry->cursor_position = 0;
+	tofi->view_state.input_utf32_length = 0;
+	tofi->view_state.input_utf8_length = 0;
+	tofi->view_state.input_utf8[0] = '\0';
+	tofi->view_state.cursor_position = 0;
 	
-	string_ref_vec_destroy(&entry->results);
-	entry->results = string_ref_vec_create();
+	string_ref_vec_destroy(&tofi->view_state.results);
+	tofi->view_state.results = string_ref_vec_create();
 	struct feedback_entry *fe;
 	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&entry->results, fe->content);
+		string_ref_vec_add(&tofi->view_state.results, fe->content);
 	}
 	tofi->window.surface.redraw = true;
 }
@@ -1434,12 +1529,11 @@ static void feedback_update_loading_animation(struct tofi *tofi)
 	const char *frames[] = {".", "..", "..."};
 	strcpy(first->content, frames[tofi->feedback_process.loading_frame]);
 	
-	struct entry *entry = &tofi->window.entry;
-	string_ref_vec_destroy(&entry->results);
-	entry->results = string_ref_vec_create();
+	string_ref_vec_destroy(&tofi->view_state.results);
+	tofi->view_state.results = string_ref_vec_create();
 	struct feedback_entry *fe;
 	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&entry->results, fe->content);
+		string_ref_vec_add(&tofi->view_state.results, fe->content);
 	}
 	tofi->window.surface.redraw = true;
 }
@@ -1469,40 +1563,44 @@ static void execute_command(const char *template, struct value_dict *dict)
 
 static bool do_submit(struct tofi *tofi)
 {
-	struct entry *entry = &tofi->window.entry;
 	struct nav_level *level = tofi->nav_current;
-	
+
 	if (level && level->mode == SELECTION_INPUT) {
 		struct value_dict *dict = dict_copy(level->dict);
 		dict_set(&dict, level->as, level->input_buffer);
-		
-		if (level->execution_type == EXECUTION_EXEC) {
-			execute_command(level->template, dict);
-			dict_destroy(dict);
-			return true;
-		} else {
+
+		if (level->next_plugin[0]) {
+			struct plugin *next_p = plugin_get(level->next_plugin);
+			if (next_p) return navigate_to_plugin(tofi, next_p, dict);
+		}
+
+		if (level->return_to_parent) {
 			nav_pop_level(tofi);
 			if (tofi->nav_current) {
 				struct nav_level *parent = tofi->nav_current;
 				dict_destroy(parent->dict);
 				parent->dict = dict;
-				
+
 				if (parent->execution_type == EXECUTION_EXEC) {
 					execute_command(parent->template, parent->dict);
 					return true;
 				}
-				
-				update_entry_from_level(tofi, parent);
-				entry->input_utf32_length = 0;
-				entry->input_utf8_length = 0;
-				entry->input_utf8[0] = '\0';
-				entry->cursor_position = 0;
+
+				update_view_state_from_level(tofi, parent);
+				tofi->view_state.input_utf32_length = 0;
+				tofi->view_state.input_utf8_length = 0;
+				tofi->view_state.input_utf8[0] = '\0';
+				tofi->view_state.cursor_position = 0;
 				tofi->window.surface.redraw = true;
 			}
 			return false;
 		}
+
+		execute_command(level->template, dict);
+		dict_destroy(dict);
+		return true;
 	}
-	
+
 	if (level && level->mode == SELECTION_FEEDBACK) {
 		if (!level->input_buffer[0]) {
 			return false;
@@ -1510,20 +1608,20 @@ static bool do_submit(struct tofi *tofi)
 		feedback_spawn_process(tofi, level);
 		return false;
 	}
-	
-	uint32_t selection = entry->selection + entry->first_result;
 
-	if (entry->results.count == 0) {
+	uint32_t selection = tofi->view_state.selection + tofi->view_state.first_result;
+
+	if (tofi->view_state.results.count == 0) {
 		return false;
 	}
 
-	char *res = entry->results.buf[selection].string;
+	char *res = tofi->view_state.results.buf[selection].string;
 
 	struct nav_result *nav_res = NULL;
 	if (level) {
 		nav_res = find_nav_result(level, res);
 	}
-	
+
 	if (!level && !wl_list_empty(&tofi->base_results)) {
 		struct nav_result *r;
 		wl_list_for_each(r, &tofi->base_results, link) {
@@ -1533,108 +1631,48 @@ static bool do_submit(struct tofi *tofi)
 			}
 		}
 	}
-	
+
 	if (nav_res) {
 		struct action_def *action = &nav_res->action;
 		struct value_dict *dict = level ? dict_copy(level->dict) : dict_create();
-		
-		if (action->as[0]) {
-			dict_set(&dict, action->as, nav_res->value);
-		}
-		
+
 		switch (action->selection_type) {
 		case SELECTION_SELF:
-			if (action->execution_type == EXECUTION_EXEC) {
-				execute_command(action->template, dict);
-				dict_destroy(dict);
-				return true;
-			} else {
-				if (level) {
-					nav_pop_level(tofi);
-				}
+			if (action->as[0]) {
+				dict_set(&dict, action->as, nav_res->value);
+			}
+
+			if (level && level->next_plugin[0]) {
+				struct plugin *next_p = plugin_get(level->next_plugin);
+				if (next_p) return navigate_to_plugin(tofi, next_p, dict);
+			}
+
+			if (level && level->return_to_parent) {
+				nav_pop_level(tofi);
 				if (tofi->nav_current) {
 					struct nav_level *parent = tofi->nav_current;
 					dict_destroy(parent->dict);
 					parent->dict = dict;
-					
+
 					if (parent->execution_type == EXECUTION_EXEC) {
 						execute_command(parent->template, parent->dict);
 						return true;
 					}
-					
-					update_entry_from_level(tofi, parent);
+
+					update_view_state_from_level(tofi, parent);
+					tofi->view_state.input_utf32_length = 0;
+					tofi->view_state.input_utf8_length = 0;
+					tofi->view_state.input_utf8[0] = '\0';
+					tofi->view_state.cursor_position = 0;
+					tofi->window.surface.redraw = true;
 				}
 				return false;
 			}
-			
-		case SELECTION_INPUT: {
-			struct nav_level *new_level = nav_level_create(SELECTION_INPUT, dict);
-			strncpy(new_level->template, action->template, NAV_TEMPLATE_MAX - 1);
-			strncpy(new_level->prompt, action->prompt, NAV_PROMPT_MAX - 1);
-			strncpy(new_level->as, action->as, NAV_KEY_MAX - 1);
-			new_level->execution_type = action->execution_type;
-			
-			char *resolved_prompt = template_resolve(action->prompt, dict);
-			if (resolved_prompt) {
-				strncpy(new_level->display_prompt, resolved_prompt, NAV_PROMPT_MAX - 1);
-				free(resolved_prompt);
-			}
-			
-			nav_push_level(tofi, new_level);
-			update_entry_from_level(tofi, new_level);
-			
-			entry->input_utf32_length = 0;
-			entry->input_utf8_length = 0;
-			entry->input_utf8[0] = '\0';
-			entry->cursor_position = 0;
-			entry->selection = 0;
-			entry->first_result = 0;
-			tofi->window.surface.redraw = true;
-			return false;
-		}
-			
-		case SELECTION_SELECT: {
-			struct nav_level *new_level = nav_level_create(SELECTION_SELECT, dict);
-			strncpy(new_level->template, action->template, NAV_TEMPLATE_MAX - 1);
-			strncpy(new_level->as, action->as, NAV_KEY_MAX - 1);
-			strncpy(new_level->list_cmd, action->list_cmd, NAV_CMD_MAX - 1);
-			new_level->format = action->format;
-			strncpy(new_level->label_field, action->label_field, NAV_FIELD_MAX - 1);
-			strncpy(new_level->value_field, action->value_field, NAV_FIELD_MAX - 1);
-			new_level->execution_type = action->execution_type;
-			
-			if (action->on_select) {
-				new_level->on_select = action_def_copy(action->on_select);
-			}
-			
-			plugin_run_list_cmd(action->list_cmd, action->format,
-				action->label_field, action->value_field,
-				action->on_select, action->template, action->as,
-				&new_level->results);
-			
-			nav_results_copy(&new_level->backup_results, &new_level->results);
-			
-			if (action->prompt[0]) {
-				char *resolved = template_resolve(action->prompt, dict);
-				if (resolved) {
-					strncpy(new_level->display_prompt, resolved, NAV_PROMPT_MAX - 1);
-					free(resolved);
-				}
-			}
-			
-			nav_push_level(tofi, new_level);
-			update_entry_from_level(tofi, new_level);
-			
-			entry->input_utf32_length = 0;
-			entry->input_utf8_length = 0;
-			entry->input_utf8[0] = '\0';
-			entry->cursor_position = 0;
-			entry->selection = 0;
-			entry->first_result = 0;
-			tofi->window.surface.redraw = true;
-			return false;
-		}
-			
+
+			execute_command(action->template, dict);
+			dict_destroy(dict);
+			return true;
+
 		case SELECTION_PLUGIN: {
 			struct plugin *target_plugin = plugin_get(action->plugin_ref);
 			if (!target_plugin) {
@@ -1642,73 +1680,12 @@ static bool do_submit(struct tofi *tofi)
 				dict_destroy(dict);
 				return false;
 			}
-			
-			struct nav_level *new_level = nav_level_create(SELECTION_PLUGIN, dict);
-			strncpy(new_level->template, action->template, NAV_TEMPLATE_MAX - 1);
-			strncpy(new_level->as, action->as, NAV_KEY_MAX - 1);
-			strncpy(new_level->plugin_ref, action->plugin_ref, NAV_NAME_MAX - 1);
-			new_level->execution_type = action->execution_type;
-			
-			plugin_populate_plugin_actions(target_plugin, &new_level->results);
-			nav_results_copy(&new_level->backup_results, &new_level->results);
-			
-			if (target_plugin->context_name[0]) {
-				snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target_plugin->context_name);
-			}
-			
-			nav_push_level(tofi, new_level);
-			update_entry_from_level(tofi, new_level);
-			
-			entry->input_utf32_length = 0;
-			entry->input_utf8_length = 0;
-			entry->input_utf8[0] = '\0';
-			entry->cursor_position = 0;
-			entry->selection = 0;
-			entry->first_result = 0;
-			tofi->window.surface.redraw = true;
-			return false;
+			return navigate_to_plugin(tofi, target_plugin, dict);
 		}
-			
-		case SELECTION_FEEDBACK: {
-			struct nav_level *new_level = nav_level_create(SELECTION_FEEDBACK, dict);
-			strncpy(new_level->eval_cmd, action->eval_cmd, NAV_CMD_MAX - 1);
-			strncpy(new_level->display_input, action->display_input, NAV_TEMPLATE_MAX - 1);
-			strncpy(new_level->display_result, action->display_result, NAV_TEMPLATE_MAX - 1);
-			new_level->show_input = action->show_input;
-			new_level->history_limit = action->history_limit;
-			new_level->persist_history = action->persist_history;
-			
-			if (action->history_name[0]) {
-				strncpy(new_level->history_name, action->history_name, NAV_NAME_MAX - 1);
-			} else if (nav_res->source_plugin[0]) {
-				strncpy(new_level->history_name, nav_res->source_plugin, NAV_NAME_MAX - 1);
-			} else {
-				strncpy(new_level->history_name, "feedback", NAV_NAME_MAX - 1);
-			}
-			
-			if (action->prompt[0]) {
-				char *resolved = template_resolve(action->prompt, dict);
-				if (resolved) {
-					strncpy(new_level->display_prompt, resolved, NAV_PROMPT_MAX - 1);
-					free(resolved);
-				}
-			}
-			
-			wl_list_init(&new_level->results);
-			feedback_history_load(new_level);
-			
-			nav_push_level(tofi, new_level);
-			update_entry_from_feedback_level(tofi, new_level);
-			
-			entry->input_utf32_length = 0;
-			entry->input_utf8_length = 0;
-			entry->input_utf8[0] = '\0';
-			entry->cursor_position = 0;
-			entry->selection = 0;
-			entry->first_result = 0;
-			tofi->window.surface.redraw = true;
-			return false;
-		}
+
+		default:
+			dict_destroy(dict);
+			break;
 		}
 	}
 
@@ -1717,23 +1694,23 @@ static bool do_submit(struct tofi *tofi)
 
 static void read_clipboard(struct tofi *tofi)
 {
-	struct entry *entry = &tofi->window.entry;
+	struct view_state *state = &tofi->view_state;
 
 	/* Make a copy of any text after the cursor. */
 	uint32_t *end_text = NULL;
-	size_t end_text_length = entry->input_utf32_length - entry->cursor_position;
+	size_t end_text_length = state->input_utf32_length - state->cursor_position;
 	if (end_text_length > 0) {
-		end_text = xcalloc(end_text_length, sizeof(*entry->input_utf32));
+		end_text = xcalloc(end_text_length, sizeof(*state->input_utf32));
 		memcpy(end_text,
-				&entry->input_utf32[entry->cursor_position],
-				end_text_length * sizeof(*entry->input_utf32));
+				&state->input_utf32[state->cursor_position],
+				end_text_length * sizeof(*state->input_utf32));
 	}
 	/* Buffer for 4 UTF-8 bytes plus a null terminator. */
 	char buffer[5];
 	memset(buffer, 0, N_ELEM(buffer));
 	errno = 0;
 	bool eof = false;
-	while (entry->cursor_position < N_ELEM(entry->input_utf32)) {
+	while (state->cursor_position < N_ELEM(state->input_utf32)) {
 		for (size_t i = 0; i < 4; i++) {
 			/*
 			 * Read input 1 byte at a time. This is slow, but easy,
@@ -1771,8 +1748,8 @@ static void read_clipboard(struct tofi *tofi)
 				log_error("Invalid UTF-8 character in clipboard: %s\n", buffer);
 				break;
 			} else {
-				entry->input_utf32[entry->cursor_position] = unichar;
-				entry->cursor_position++;
+				state->input_utf32[state->cursor_position] = unichar;
+				state->cursor_position++;
 				break;
 			}
 		}
@@ -1781,20 +1758,20 @@ static void read_clipboard(struct tofi *tofi)
 			break;
 		}
 	}
-	entry->input_utf32_length = entry->cursor_position;
+	state->input_utf32_length = state->cursor_position;
 
 	/* If there was any text after the cursor, re-insert it now. */
 	if (end_text != NULL) {
 		for (size_t i = 0; i < end_text_length; i++) {
-			if (entry->input_utf32_length == N_ELEM(entry->input_utf32)) {
+			if (state->input_utf32_length == N_ELEM(state->input_utf32)) {
 				break;
 			}
-			entry->input_utf32[entry->input_utf32_length] = end_text[i];
-			entry->input_utf32_length++;
+			state->input_utf32[state->input_utf32_length] = end_text[i];
+			state->input_utf32_length++;
 		}
 		free(end_text);
 	}
-	entry->input_utf32[MIN(entry->input_utf32_length, N_ELEM(entry->input_utf32) - 1)] = U'\0';
+	state->input_utf32[MIN(state->input_utf32_length, N_ELEM(state->input_utf32) - 1)] = U'\0';
 
 	clipboard_finish_paste(&tofi->clipboard);
 
@@ -1819,19 +1796,21 @@ int main(int argc, char *argv[])
 			.scale = 1,
 			.width = 1280,
 			.height = 720,
-			.entry = {
-				.font_name = "Sans",
-				.font_size = 24,
-				.prompt_text = "run: ",
-				.padding_top = 8,
-				.padding_bottom = 8,
-				.padding_left = 8,
-				.padding_right = 8,
-				.border_width = 12,
-				.background_color = {0.106f, 0.114f, 0.118f, 1.0f},
-				.foreground_color = {1.0f, 1.0f, 1.0f, 1.0f},
-				.accent_color = {0.976f, 0.149f, 0.447f, 1.0f},
-			}
+		},
+		.view_theme = {
+			.font_name = "Sans",
+			.font_size = 24,
+			.padding_top = 8,
+			.padding_bottom = 8,
+			.padding_left = 8,
+			.padding_right = 8,
+			.border_width = 12,
+			.background_color = {0.106f, 0.114f, 0.118f, 1.0f},
+			.foreground_color = {1.0f, 1.0f, 1.0f, 1.0f},
+			.accent_color = {0.976f, 0.149f, 0.447f, 1.0f},
+		},
+		.view_state = {
+			.prompt = "run: ",
 		},
 		.anchor =  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM
@@ -1855,7 +1834,8 @@ int main(int argc, char *argv[])
 	}
 	log_debug("Loaded %zu plugins.\n", plugin_count());
 	
-	parse_args(&tofi, argc, argv);
+	const char *entry_plugin = NULL;
+	parse_args(&tofi, argc, argv, &entry_plugin);
 	log_debug("Config done.\n");
 
 	/*
@@ -1865,7 +1845,7 @@ int main(int argc, char *argv[])
 	 * to Wayland.
 	 */
 	
-	snprintf(tofi.base_prompt, MAX_PROMPT_LENGTH, "%s", tofi.window.entry.prompt_text);
+	snprintf(tofi.base_prompt, MAX_PROMPT_LENGTH, "%s", tofi.view_state.prompt);
 
 	log_debug("Connecting to Wayland display.\n");
 	tofi.wl_display = wl_display_connect(NULL);
@@ -2112,13 +2092,22 @@ int main(int argc, char *argv[])
 		strncpy(pr->label, display, NAV_LABEL_MAX - 1);
 	}
 	
-	tofi.window.entry.commands = commands;
+	tofi.view_state.commands = commands;
 	
 	log_debug("Loaded %d plugin results.\n", plugin_result_count);
-	log_debug("Commands count: %zu\n", tofi.window.entry.commands.count);
+	log_debug("Commands count: %zu\n", tofi.view_state.commands.count);
 	log_unindent();
 	log_debug("Plugin list generated.\n");
-	tofi.window.entry.results = string_ref_vec_copy(&tofi.window.entry.commands);
+	tofi.view_state.results = string_ref_vec_copy(&tofi.view_state.commands);
+	snprintf(tofi.view_state.prompt, VIEW_MAX_PROMPT, "%s", tofi.base_prompt);
+
+	if (entry_plugin) {
+		struct plugin *p = plugin_get(entry_plugin);
+		if (p) {
+			tofi.entry_only = true;
+			navigate_to_plugin(&tofi, p, dict_create());
+		}
+	}
 
 	/*
 	 * Next, we create the Wayland surface, which takes on the
@@ -2256,8 +2245,8 @@ int main(int argc, char *argv[])
 
 	/*
 	 * Create the various structures for our window surface. This needs to
-	 * be done before calling entry_init as that performs some initial
-	 * drawing, and surface_init allocates the buffers we'll be drawing to.
+	 * be done before initializing the renderer, which needs the buffers
+	 * for drawing.
 	 */
 	log_debug("Initialising window surface.\n");
 	log_indent();
@@ -2291,37 +2280,27 @@ int main(int argc, char *argv[])
 				scale = tofi.window.scale * 120;
 			}
 		}
-		entry_init(
-				&tofi.window.entry,
+		
+		tofi.renderer = renderer_cairo_create();
+		tofi.renderer->init(
+				tofi.renderer,
 				tofi.window.surface.shm_pool_data,
 				tofi.window.surface.width,
 				tofi.window.surface.height,
-				scale);
+				(double)scale / 120.0,
+				&tofi.view_theme);
+		
+		tofi.renderer->begin_frame(tofi.renderer);
+		tofi.renderer->render(tofi.renderer, &tofi.view_state, &tofi.view_theme, &tofi.view_layout);
+		tofi.renderer->end_frame(tofi.renderer);
 	}
 	log_unindent();
 	log_debug("Renderer initialised.\n");
 
-	/* Perform an initial render. */
 	surface_draw(&tofi.window.surface);
 
-	/*
-	 * entry_init() left the second of the two buffers we use for
-	 * double-buffering unpainted to lower startup time, as described
-	 * there. Here, we flush our first, finished buffer to the screen, then
-	 * copy over the image to the second buffer before we need to use it in
-	 * the main loop. This ensures we paint to the screen as quickly as
-	 * possible after startup.
-	 */
 	wl_display_roundtrip(tofi.wl_display);
-	log_debug("Initialising second buffer.\n");
-	memcpy(
-		cairo_image_surface_get_data(tofi.window.entry.cairo[1].surface),
-		cairo_image_surface_get_data(tofi.window.entry.cairo[0].surface),
-		tofi.window.surface.width * tofi.window.surface.height * sizeof(uint32_t)
-	);
-	log_debug("Second buffer initialised.\n");
 
-	/* We've just rendered, so we don't need to do it again right now. */
 	tofi.window.surface.redraw = false;
 
 	/*
@@ -2444,7 +2423,10 @@ int main(int argc, char *argv[])
 		wl_display_dispatch_pending(tofi.wl_display);
 
 		if (tofi.window.surface.redraw) {
-			entry_update(&tofi.window.entry);
+			tofi.renderer->begin_frame(tofi.renderer);
+			tofi.renderer->render(tofi.renderer, &tofi.view_state, &tofi.view_theme, &tofi.view_layout);
+			tofi.renderer->end_frame(tofi.renderer);
+			
 			surface_draw(&tofi.window.surface);
 			tofi.window.surface.redraw = false;
 		}
@@ -2466,7 +2448,10 @@ int main(int argc, char *argv[])
 	 * (without leaking it)
 	 */
 	surface_destroy(&tofi.window.surface);
-	entry_destroy(&tofi.window.entry);
+	if (tofi.renderer) {
+		tofi.renderer->destroy(tofi.renderer);
+		free(tofi.renderer);
+	}
 	if (tofi.window.wp_viewport != NULL) {
 		wp_viewport_destroy(tofi.window.wp_viewport);
 	}
@@ -2507,8 +2492,8 @@ int main(int argc, char *argv[])
 	xkb_keymap_unref(tofi.xkb_keymap);
 	xkb_context_unref(tofi.xkb_context);
 	wl_registry_destroy(tofi.wl_registry);
-	string_ref_vec_destroy(&tofi.window.entry.commands);
-	string_ref_vec_destroy(&tofi.window.entry.results);
+	string_ref_vec_destroy(&tofi.view_state.commands);
+	string_ref_vec_destroy(&tofi.view_state.results);
 	
 	struct nav_level *lvl;
 	wl_list_for_each(lvl, &tofi.nav_stack, link) {

@@ -1,0 +1,38 @@
+# hypr-tofi config
+
+# Font settings
+font = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
+font-size = 14
+
+# Colors
+background-color = #1a1b26e6
+text-color = #FFFFFF
+accent-color = #00d9ff
+
+# Window dimensions
+width = 600
+height = 400
+
+# Border and corners
+border-width = 2
+corner-radius = 3
+
+# Padding
+padding = 16
+
+# Positioning
+# anchor = center
+# margin-top = 0
+# margin-bottom = 0
+# margin-left = 0
+# margin-right = 0
+
+# Output (monitor to display on)
+# output =
+
+# Prompt
+prompt-text = "> "
+
+# Plugins - comma-separated list
+# Use "all" to enable all, "-name" to exclude
+plugins = all

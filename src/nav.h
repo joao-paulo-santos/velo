@@ -26,7 +26,6 @@ typedef enum {
 
 typedef enum {
 	EXECUTION_EXEC,
-	EXECUTION_RETURN,
 } execution_type_t;
 
 typedef enum {
@@ -43,21 +42,20 @@ struct value_dict {
 struct action_def {
 	selection_type_t selection_type;
 	execution_type_t execution_type;
-	
+
 	char as[NAV_KEY_MAX];
 	char template[NAV_TEMPLATE_MAX];
-	
+
 	char prompt[NAV_PROMPT_MAX];
-	
+	bool sensitive;
+
 	char list_cmd[NAV_CMD_MAX];
 	format_t format;
 	char label_field[NAV_FIELD_MAX];
 	char value_field[NAV_FIELD_MAX];
-	
-	struct action_def *on_select;
-	
+
 	char plugin_ref[NAV_NAME_MAX];
-	
+
 	char eval_cmd[NAV_CMD_MAX];
 	char display_input[NAV_TEMPLATE_MAX];
 	char display_result[NAV_TEMPLATE_MAX];
@@ -83,34 +81,37 @@ struct feedback_entry {
 
 struct nav_level {
 	struct wl_list link;
-	
+
 	selection_type_t mode;
-	
+
 	struct value_dict *dict;
-	
+
 	execution_type_t execution_type;
 	char template[NAV_TEMPLATE_MAX];
-	
+
 	char prompt[NAV_PROMPT_MAX];
 	char as[NAV_KEY_MAX];
 	char input_buffer[NAV_INPUT_MAX];
 	size_t input_length;
-	
+	bool sensitive;
+
 	char list_cmd[NAV_CMD_MAX];
 	format_t format;
 	char label_field[NAV_FIELD_MAX];
 	char value_field[NAV_FIELD_MAX];
-	struct action_def *on_select;
-	
+
+	char next_plugin[NAV_NAME_MAX];
+	bool return_to_parent;
+
 	char plugin_ref[NAV_NAME_MAX];
-	
+
 	struct wl_list results;
 	struct wl_list backup_results;
 	uint32_t selection;
 	uint32_t first_result;
-	
+
 	char display_prompt[NAV_PROMPT_MAX];
-	
+
 	char eval_cmd[NAV_CMD_MAX];
 	char display_input[NAV_TEMPLATE_MAX];
 	char display_result[NAV_TEMPLATE_MAX];

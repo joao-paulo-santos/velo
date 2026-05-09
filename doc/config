@@ -2,87 +2,38 @@
 #
 # Copy this file to ~/.config/hypr-tofi/config and get customising!
 
-#
 ### Fonts
-#
-	font = "Sans"
-	font-size = 24
+font = Sans
+font-size = 24
 
-#
-### Colors
-#
-	text-color = #FFFFFF
-	background-color = #1B1D1E
-	accent-color = #F92672
+### Colors (hex with optional alpha)
+text-color = #FFFFFF
+background-color = #1B1D1E
+accent-color = #F92672
 
-#
 ### Window
-#
-	width = 600
-	height = 400
-	border-width = 2
-	corner-radius = 0
-	padding = 16
+width = 600
+height = 400
+border-width = 2
+corner-radius = 0
+padding = 16
 
-#
 ### Positioning
-#
-	output = ""
-	anchor = center
-	margin-top = 0
-	margin-bottom = 0
-	margin-left = 0
-	margin-right = 0
+output =
+anchor = center
+margin-top = 0
+margin-bottom = 0
+margin-left = 0
+margin-right = 0
 
-#
 ### Text
-#
-	prompt-text = "> "
-	history = true
+prompt-text = "> "
 
-#
-### Mode Configuration
-#
-	# Comma-separated list of modes to enable
-	# Available: drun, windows, workspaces, tmux-fridge, tmux-attach, prompt, url
-	# Use "all" to enable all, "-mode" to exclude
-	# Examples:
-	#   default-modes = all
-	#   default-modes = all,-prompt,-url
-	#   default-modes = drun,windows
-	#default-modes = all
-
-	# Show mode prefixes in results (e.g., "Launch > Firefox")
-	show-display-prefixes = true
-
-	# Trigger prefixes for special modes
-	prefix-math = =           # Type =2+2 to calculate
-	prefix-prompt = ?         # Type ?question to query AI
-
-	# Display prefixes for each mode (shown as "Prefix > Result")
-	#display-prefix-drun = Launch
-	#display-prefix-windows = Show
-	#display-prefix-workspaces = Workspace
-	#display-prefix-tmux-fridge = Fridge
-	#display-prefix-tmux-attach = Tmux
-	#display-prefix-prompt = Ask
-	#display-prefix-calc = Calc
-	#display-prefix-url = Open
-
-	# Calc debounce delay in milliseconds
-	# Prevents running qalc on every keystroke
-	calc-debounce = 400
-
-	# Calc history mode
-	# When true: Enter copies result + adds to history + stays open
-	# When false: Enter copies result + closes window
-	calc-history = true
-
-#
-### Advanced Mode Options
-#
-	# Command to run for prompt mode
-	prompt-command = opencode run
-
-	# Directory for tmux fridge frozen sessions
-	tmux-fridge-dir = ~/.config/tmux/tmux-workspaces
+### Plugins
+# Comma-separated list of plugins to enable
+# Use "all" to enable all, "-name" to exclude
+# Examples:
+#   plugins = all
+#   plugins = all,-drun
+#   plugins = apps,windows
+plugins = all,-drun

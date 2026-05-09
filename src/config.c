@@ -10,6 +10,7 @@
 #include "config.h"
 #include "log.h"
 #include "nelem.h"
+#include "plugin.h"
 #include "scale.h"
 #include "unicode.h"
 #include "xmalloc.h"
@@ -78,8 +79,6 @@ static char *get_config_path(void);
 static uint32_t fixup_percentage(uint32_t value, uint32_t base, bool is_percent);
 
 static uint32_t parse_anchor(const char *filename, size_t lineno, const char *str, bool *err);
-
-static bool parse_bool(const char *filename, size_t lineno, const char *str, bool *err);
 static struct color parse_color(const char *filename, size_t lineno, const char *str, bool *err);
 static uint32_t parse_uint32(const char *filename, size_t lineno, const char *str, bool *err);
 static struct uint32_percent parse_uint32_percent(const char *filename, size_t lineno, const char *str, bool *err);
@@ -309,20 +308,20 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 	} else if (strcasecmp(option, "background-color") == 0) {
 		struct color val = parse_color(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.entry.background_color = val;
+			tofi->view_theme.background_color = val;
 		}
 	} else if (strcasecmp(option, "corner-radius") == 0) {
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.entry.corner_radius = val;
+			tofi->view_theme.corner_radius = val;
 		}
 	} else if (strcasecmp(option, "output") == 0) {
 		snprintf(tofi->target_output_name, N_ELEM(tofi->target_output_name), "%s", value);
 	} else if (strcasecmp(option, "font") == 0) {
 		if ((strlen(value) > 2) && (value[0] == '~') && (value[1] == '/')) {
-			snprintf(tofi->window.entry.font_name, N_ELEM(tofi->window.entry.font_name), "%s%s", getenv("HOME"), &(value[1]));
+			snprintf(tofi->view_theme.font_name, N_ELEM(tofi->view_theme.font_name), "%s%s", getenv("HOME"), &(value[1]));
 		} else {
-			snprintf(tofi->window.entry.font_name, N_ELEM(tofi->window.entry.font_name), "%s", value);
+			snprintf(tofi->view_theme.font_name, N_ELEM(tofi->view_theme.font_name), "%s", value);
 		}
 	} else if (strcasecmp(option, "font-size") == 0) {
 		uint32_t val =  parse_uint32(filename, lineno, value, &err);
@@ -330,24 +329,24 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 			err = true;
 			PARSE_ERROR(filename, lineno, "Option \"%s\" must be greater than 0.\n", option);
 		} else {
-			tofi->window.entry.font_size = val;
+			tofi->view_theme.font_size = val;
 		}
 	} else if (strcasecmp(option, "prompt-text") == 0) {
-		snprintf(tofi->window.entry.prompt_text, N_ELEM(tofi->window.entry.prompt_text), "%s", value);
+		snprintf(tofi->view_state.prompt, N_ELEM(tofi->view_state.prompt), "%s", value);
 	} else if (strcasecmp(option, "border-width") == 0) {
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.entry.border_width = val;
+			tofi->view_theme.border_width = val;
 		}
 	} else if (strcasecmp(option, "text-color") == 0) {
 		struct color val = parse_color(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.entry.foreground_color = val;
+			tofi->view_theme.foreground_color = val;
 		}
 	} else if (strcasecmp(option, "accent-color") == 0) {
 		struct color val = parse_color(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.entry.accent_color = val;
+			tofi->view_theme.accent_color = val;
 		}
 	} else if (strcasecmp(option, "width") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
@@ -388,11 +387,13 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 	} else if (strcasecmp(option, "padding") == 0) {
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.entry.padding_top = val;
-			tofi->window.entry.padding_bottom = val;
-			tofi->window.entry.padding_left = val;
-			tofi->window.entry.padding_right = val;
+			tofi->view_theme.padding_top = val;
+			tofi->view_theme.padding_bottom = val;
+			tofi->view_theme.padding_left = val;
+			tofi->view_theme.padding_right = val;
 		}
+	} else if (strcasecmp(option, "plugins") == 0) {
+		plugin_apply_filter(value);
 	} else {
 		PARSE_ERROR(filename, lineno, "Unknown option \"%s\"\n", option);
 		err = true;
@@ -488,20 +489,6 @@ char *get_config_path()
 	char *name = xcalloc(len, sizeof(*name));
 	snprintf(name, len, "%s%s%s", base_dir, ext, "/hypr-tofi/config");
 	return name;
-}
-
-bool parse_bool(const char *filename, size_t lineno, const char *str, bool *err)
-{
-	if (strcasecmp(str, "true") == 0) {
-		return true;
-	} else if (strcasecmp(str, "false") == 0) {
-		return false;
-	}
-	PARSE_ERROR(filename, lineno, "Invalid boolean value \"%s\".\n", str);
-	if (err) {
-		*err = true;
-	}
-	return false;
 }
 
 uint32_t parse_anchor(const char *filename, size_t lineno, const char *str, bool *err)
