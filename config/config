@@ -35,4 +35,4 @@ prompt-text = "> "
 
 # Plugins - comma-separated list
 # Use "all" to enable all, "-name" to exclude
-plugins = all,-drun
+plugins = all

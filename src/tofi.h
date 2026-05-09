@@ -108,12 +108,16 @@ struct tofi {
 	struct view_layout view_layout;
 	struct renderer *renderer;
 
+	bool entry_only;
 	uint32_t anchor;
 	bool use_scale;
 	char target_output_name[MAX_OUTPUT_NAME_LEN];
 };
 
+struct plugin;
+
 void nav_push_level(struct tofi *tofi, struct nav_level *level);
 void update_view_state_from_level(struct tofi *tofi, struct nav_level *level);
+bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_dict *dict);
 
 #endif

@@ -79,9 +79,6 @@ static void nav_filter_results(struct tofi *tofi, const char *filter)
 			strncpy(copy->label, res->label, NAV_LABEL_MAX - 1);
 			strncpy(copy->value, res->value, NAV_VALUE_MAX - 1);
 			copy->action = res->action;
-			if (res->action.on_select) {
-				copy->action.on_select = action_def_copy(res->action.on_select);
-			}
 			wl_list_insert(&level->results, &copy->link);
 			string_ref_vec_add(&state->results, copy->label);
 		}
@@ -135,6 +132,10 @@ static void nav_pop_and_restore(struct tofi *tofi)
 	
 	if (wl_list_empty(&tofi->nav_stack)) {
 		tofi->nav_current = NULL;
+		if (tofi->entry_only) {
+			tofi->closed = true;
+			return;
+		}
 		snprintf(state->prompt, VIEW_MAX_PROMPT, "%s", tofi->base_prompt);
 		string_ref_vec_destroy(&state->results);
 		if (tofi->base_input_buffer[0] == '\0') {
@@ -336,27 +337,7 @@ static bool try_teleport(struct tofi *tofi)
 	}
 	
 	struct value_dict *dict = dict_create();
-	struct nav_level *new_level = nav_level_create(SELECTION_PLUGIN, dict);
-	strncpy(new_level->plugin_ref, target->name, NAV_NAME_MAX - 1);
-	
-	plugin_populate_all(target, &new_level->results);
-	nav_results_copy(&new_level->backup_results, &new_level->results);
-	
-	if (target->context_name[0]) {
-		snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
-	}
-	
-	nav_push_level(tofi, new_level);
-	update_view_state_from_level(tofi, new_level);
-	
-	state->input_utf32_length = 0;
-	state->input_utf8_length = 0;
-	state->input_utf8[0] = '\0';
-	state->cursor_position = 0;
-	state->selection = 0;
-	state->first_result = 0;
-	
-	tofi->window.surface.redraw = true;
+	navigate_to_plugin(tofi, target, dict);
 	log_debug("Teleported to plugin: %s\n", target->name);
 	return true;
 }

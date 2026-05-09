@@ -9,43 +9,68 @@
 
 #define PLUGIN_NAME_MAX 64
 #define PLUGIN_PATH_MAX 256
+#define MAX_CHILDREN 32
+
+typedef enum {
+	PLUGIN_LIST,
+	PLUGIN_SELECT,
+	PLUGIN_INPUT,
+	PLUGIN_FEEDBACK,
+	PLUGIN_EXEC,
+} plugin_type_t;
 
 struct plugin;
 struct wl_list;
 
 typedef void (*plugin_populate_fn)(struct plugin *plugin, struct wl_list *results);
 
-struct plugin_action {
-	struct wl_list link;
-	char label[NAV_LABEL_MAX];
-	char display_prefix[NAV_LABEL_MAX];
-	struct action_def action;
-};
-
 struct plugin {
 	struct wl_list link;
+
 	char name[PLUGIN_NAME_MAX];
+	char display_label[NAV_LABEL_MAX];
 	char display_prefix[NAV_LABEL_MAX];
 	char context_name[NAV_LABEL_MAX];
 	bool global;
-	bool enabled;
-	
-	bool is_builtin;
-	plugin_populate_fn populate_fn;
-	
+
 	char **depends;
 	size_t depends_count;
-	
-	bool has_provider;
+
+	plugin_type_t type;
+
+	char children[MAX_CHILDREN][PLUGIN_NAME_MAX];
+	size_t children_count;
+
+	char template[NAV_TEMPLATE_MAX];
+	char as[NAV_KEY_MAX];
+	execution_type_t execution_type;
+
 	char list_cmd[NAV_CMD_MAX];
 	format_t format;
 	char label_field[NAV_FIELD_MAX];
 	char value_field[NAV_FIELD_MAX];
-	struct action_def provider_action;
-	
-	struct wl_list actions;
-	
+
+	char prompt[NAV_PROMPT_MAX];
+	bool sensitive;
+
+	char next[PLUGIN_NAME_MAX];
+	bool return_to_parent;
+
+	bool teleport;
+
+	char eval_cmd[NAV_CMD_MAX];
+	char display_input[NAV_TEMPLATE_MAX];
+	char display_result[NAV_TEMPLATE_MAX];
+	bool show_input;
+	int history_limit;
+	bool persist_history;
+	char history_name[NAV_NAME_MAX];
+
+	bool is_builtin;
+	plugin_populate_fn populate_fn;
+
 	bool loaded;
+	bool enabled;
 	bool deps_satisfied;
 };
 
@@ -62,12 +87,11 @@ void plugin_set_enabled(const char *name, bool enabled);
 void plugin_apply_filter(const char *filter_string);
 
 void plugin_populate_results(struct wl_list *results);
-void plugin_populate_plugin_actions(struct plugin *plugin, struct wl_list *results);
-void plugin_populate_all(struct plugin *plugin, struct wl_list *results);
+void plugin_populate_from_children(struct plugin *plugin, struct wl_list *results);
 struct plugin *plugin_match_prefix(const char *prefix);
 void plugin_run_list_cmd(const char *list_cmd, format_t format,
 	const char *label_field, const char *value_field,
-	struct action_def *on_select, const char *template, const char *as,
+	const char *template, const char *as,
 	struct wl_list *results);
 
 #endif
