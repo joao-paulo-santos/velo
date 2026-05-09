@@ -24,7 +24,6 @@
 #include "plugin.h"
 #include "nav.h"
 #include "nelem.h"
-#include "lock.h"
 #include "scale.h"
 #include "shm.h"
 #include "string_vec.h"

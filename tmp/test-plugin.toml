@@ -1,8 +1,0 @@
-# Test plugin for verifying TOML parsing
-name = "test-plugin"
-display_prefix = "Test"
-depends = ["echo"]
-
-list_cmd = "echo -e 'item1\nitem2\nitem3'"
-format = "lines"
-exec = "echo selected: {selection}"

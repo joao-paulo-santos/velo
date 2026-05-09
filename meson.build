@@ -1,7 +1,7 @@
 project(
   'hypr-tofi',
   'c',
-  version: '0.1.0',
+  version: '0.3.0',
   license: 'MIT',
   meson_version: '>=0.61.0',
   default_options: [
@@ -90,7 +90,6 @@ common_sources = files(
   'src/renderer_cairo.c',
   'src/input.c',
   'src/json.c',
-  'src/lock.c',
   'src/log.c',
   'src/matching.c',
   'src/mkdirp.c',
