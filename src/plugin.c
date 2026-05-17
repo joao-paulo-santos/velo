@@ -235,25 +235,44 @@ static format_t parse_format(const char *value)
 	return FORMAT_LINES;
 }
 
+static const char *xdg_bin_dir(void)
+{
+	const char *xdg = getenv("XDG_BIN_HOME");
+	if (xdg) return xdg;
+	const char *home = getenv("HOME");
+	if (!home) return NULL;
+	static char buf[512];
+	snprintf(buf, sizeof(buf), "%s/.local/bin", home);
+	return buf;
+}
+
 static bool check_dependency(const char *binary)
 {
 	char *path_env = getenv("PATH");
-	if (!path_env) return false;
-
-	char *paths = xstrdup(path_env);
-	char *dir = strtok(paths, ":");
-
-	while (dir) {
-		char full_path[512];
-		snprintf(full_path, sizeof(full_path), "%s/%s", dir, binary);
-		if (access(full_path, X_OK) == 0) {
-			free(paths);
-			return true;
+	if (path_env) {
+		char *paths = xstrdup(path_env);
+		char *dir = strtok(paths, ":");
+		while (dir) {
+			char full_path[512];
+			snprintf(full_path, sizeof(full_path), "%s/%s", dir, binary);
+			if (access(full_path, X_OK) == 0) {
+				free(paths);
+				return true;
+			}
+			dir = strtok(NULL, ":");
 		}
-		dir = strtok(NULL, ":");
+		free(paths);
 	}
 
-	free(paths);
+	const char *bin_dir = xdg_bin_dir();
+	if (bin_dir) {
+		char full_path[512];
+		snprintf(full_path, sizeof(full_path), "%s/%s", bin_dir, binary);
+		if (access(full_path, X_OK) == 0) {
+			return true;
+		}
+	}
+
 	return false;
 }
 
@@ -443,9 +462,48 @@ size_t plugin_count(void)
 	return count;
 }
 
+static char *resolve_command(const char *cmd)
+{
+	const char *space = strchr(cmd, ' ');
+	size_t bin_len = space ? (size_t)(space - cmd) : strlen(cmd);
+
+	char *path_env = getenv("PATH");
+	if (path_env) {
+		char *paths = xstrdup(path_env);
+		char *dir = strtok(paths, ":");
+		while (dir) {
+			char full_path[512];
+			snprintf(full_path, sizeof(full_path), "%s/%.*s", dir, (int)bin_len, cmd);
+			if (access(full_path, X_OK) == 0) {
+				free(paths);
+				char *resolved = xmalloc(strlen(full_path) + strlen(cmd + bin_len) + 1);
+				sprintf(resolved, "%s%s", full_path, cmd + bin_len);
+				return resolved;
+			}
+			dir = strtok(NULL, ":");
+		}
+		free(paths);
+	}
+
+	const char *bin_dir = xdg_bin_dir();
+	if (bin_dir) {
+		char full_path[512];
+		snprintf(full_path, sizeof(full_path), "%s/%.*s", bin_dir, (int)bin_len, cmd);
+		if (access(full_path, X_OK) == 0) {
+			char *resolved = xmalloc(strlen(full_path) + strlen(cmd + bin_len) + 1);
+			sprintf(resolved, "%s%s", full_path, cmd + bin_len);
+			return resolved;
+		}
+	}
+
+	return xstrdup(cmd);
+}
+
 static char *run_command(const char *cmd)
 {
-	FILE *fp = popen(cmd, "r");
+	char *resolved = resolve_command(cmd);
+	FILE *fp = popen(resolved, "r");
+	free(resolved);
 	if (!fp) {
 		return NULL;
 	}
@@ -476,6 +534,11 @@ static char *run_command(const char *cmd)
 	}
 
 	return buffer;
+}
+
+char *plugin_resolve_command(const char *cmd)
+{
+	return resolve_command(cmd);
 }
 
 void plugin_populate_results(struct wl_list *results)

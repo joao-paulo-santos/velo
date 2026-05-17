@@ -1558,11 +1558,13 @@ static void execute_command(const char *template, struct value_dict *dict)
 		return;
 	}
 	
-	int ret = system(cmd);
+	char *resolved = plugin_resolve_command(cmd);
+	free(cmd);
+	int ret = system(resolved);
 	if (ret != 0) {
 		log_error("Command failed: %d\n", ret);
 	}
-	free(cmd);
+	free(resolved);
 }
 
 static bool do_submit(struct tofi *tofi)

@@ -93,5 +93,6 @@ void plugin_run_list_cmd(const char *list_cmd, format_t format,
 	const char *label_field, const char *value_field,
 	const char *template, const char *as,
 	struct wl_list *results);
+char *plugin_resolve_command(const char *cmd);
 
 #endif
