@@ -1,5 +1,7 @@
 # hypr-tofi config
 
+theme = "default"
+
 # Font settings
 font = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
 font-size = 14

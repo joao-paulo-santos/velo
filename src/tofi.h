@@ -109,6 +109,8 @@ struct tofi {
 	struct renderer *renderer;
 
 	bool entry_only;
+	bool picker_mode;
+	char picker_selection[256];
 	uint32_t anchor;
 	bool use_scale;
 	char target_output_name[MAX_OUTPUT_NAME_LEN];

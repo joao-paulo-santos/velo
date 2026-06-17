@@ -41,6 +41,19 @@ to teleport directly to it (e.g. *calc:*, *tmux:*, *url:*).
 	Teleport directly to a plugin at startup. The window closes when
 	leaving the plugin (no root menu). Example: *-e drun*
 
+*-t, --theme* <name>
+	Set theme. Overrides the *theme* config option. Themes are loaded
+	from _$XDG_CONFIG_HOME/hypr-tofi/themes/<name>.toml_
+
+*--pick*
+	dmenu-compatible picker mode. Read newline-separated items from
+	stdin, let the user fuzzy-search and select one, print the selection
+	to stdout and exit. Cannot be combined with *-e* or *-p*.
+
+	Example: *echo -e "a\\nb\\nc" | hypr-tofi --pick*
+
+	Exit codes: 0 on selection, 1 on no selection or empty stdin.
+
 All config file options (see _hypr-tofi_(5)) can also be passed as
 long flags. Example: *--font "Monospace"* *--font-size 14*
 

@@ -11,6 +11,8 @@ _hypr-tofi()
 		--filter
 		--plugins
 		--entry
+		--theme
+		--pick
 		--anchor
 		--background-color
 		--corner-radius
@@ -42,7 +44,7 @@ _hypr-tofi()
 			;;
 	esac
 	case "${cur}" in
-		-[chfpe])
+		-[chfpet])
 			COMPREPLY=($cur)
 			;;
 		*)

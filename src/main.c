@@ -835,6 +835,8 @@ static void usage(bool err)
 "  -f, --filter <plugins>     Filter plugins (comma-separated: all,-drun,tmux,wifi).\n"
 "  -p, --plugins <list>       Show only these plugins as root menu.\n"
 "  -e, --entry <plugin>       Teleport directly to a plugin's scene at startup.\n"
+"  -t, --theme <name>         Set theme (overrides config's theme setting).\n"
+"      --pick                 dmenu-compatible picker mode: read stdin lines, print selection to stdout.\n"
 "      --font <name>           Font name.\n"
 "      --font-size <px>        Font size.\n"
 "      --prompt-text <string>  Prompt text.\n"
@@ -862,6 +864,7 @@ const struct option long_options[] = {
 	{"plugins", required_argument, NULL, 'p'},
 	{"entry", required_argument, NULL, 'e'},
 	{"theme", required_argument, NULL, 't'},
+	{"pick", no_argument, NULL, 'P'},
 	{"anchor", required_argument, NULL, 0},
 	{"background-color", required_argument, NULL, 0},
 	{"corner-radius", required_argument, NULL, 0},
@@ -881,7 +884,7 @@ const struct option long_options[] = {
 	{"padding", required_argument, NULL, 0},
 	{NULL, 0, NULL, 0}
 };
-const char *short_options = ":hc:f:p:e:t:";
+const char *short_options = ":hc:f:p:e:t:P";
 
 static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
 {
@@ -913,6 +916,8 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 			*entry_plugin = optarg;
 		} else if (opt == 't') {
 			cli_theme = optarg;
+		} else if (opt == 'P') {
+			tofi->picker_mode = true;
 		} else if (opt == ':') {
 			log_error("Option %s requires an argument.\n", argv[optind - 1]);
 			usage(true);
@@ -930,6 +935,11 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 	}
 	if (load_default_config) {
 		config_load(tofi, NULL);
+	}
+
+	if (tofi->picker_mode && (*entry_plugin || *plugin_list)) {
+		log_error("--pick cannot be combined with -e or -p.\n");
+		exit(EXIT_FAILURE);
 	}
 
 	if (cli_theme) {
@@ -1654,6 +1664,11 @@ static bool do_submit(struct tofi *tofi)
 
 		switch (action->selection_type) {
 		case SELECTION_SELF:
+			if (tofi->picker_mode) {
+				snprintf(tofi->picker_selection, N_ELEM(tofi->picker_selection), "%s", nav_res->value);
+				dict_destroy(dict);
+				return true;
+			}
 			if (action->as[0]) {
 				dict_set(&dict, action->as, nav_res->value);
 			}
@@ -2090,7 +2105,31 @@ int main(int argc, char *argv[])
 	
 	struct string_ref_vec commands = string_ref_vec_create();
 	
-	if (plugin_list) {
+	if (tofi.picker_mode) {
+		wl_list_init(&tofi.base_results);
+		char *line = NULL;
+		size_t cap = 0;
+		ssize_t len;
+		while ((len = getline(&line, &cap, stdin)) != -1) {
+			if (len > 0 && line[len - 1] == '\n') {
+				line[--len] = '\0';
+			}
+			if (len == 0) {
+				continue;
+			}
+			struct nav_result *res = nav_result_create();
+			strncpy(res->label, line, NAV_LABEL_MAX - 1);
+			strncpy(res->value, line, NAV_VALUE_MAX - 1);
+			res->action.selection_type = SELECTION_SELF;
+			res->action.execution_type = EXECUTION_EXEC;
+			wl_list_insert(tofi.base_results.prev, &res->link);
+		}
+		free(line);
+		if (wl_list_empty(&tofi.base_results)) {
+			log_debug("Picker mode: empty stdin, exiting.\n");
+			return EXIT_FAILURE;
+		}
+	} else if (plugin_list) {
 		wl_list_init(&tofi.base_results);
 		char *copy = xstrdup(plugin_list);
 		char *saveptr = NULL;
@@ -2555,6 +2594,14 @@ int main(int argc, char *argv[])
 	wl_display_disconnect(tofi.wl_display);
 
 	log_debug("Finished, exiting.\n");
+	if (tofi.picker_mode) {
+		if (tofi.picker_selection[0]) {
+			printf("%s\n", tofi.picker_selection);
+			fflush(stdout);
+			return EXIT_SUCCESS;
+		}
+		return EXIT_FAILURE;
+	}
 	if (tofi.closed) {
 		return EXIT_FAILURE;
 	}
