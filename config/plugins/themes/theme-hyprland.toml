@@ -1,0 +1,9 @@
+name = "theme-hyprland"
+display_label = "Hyprland"
+type = "select"
+depends = ["hyprctl"]
+list_cmd = "ls -1 ~/.config/hypr/users/ | sed 's/\\.lua$//'"
+format = "lines"
+as = "profile"
+template = "~/.config/hypr/scripts/hyprland-profile.sh {profile}"
+execution_type = "exec"

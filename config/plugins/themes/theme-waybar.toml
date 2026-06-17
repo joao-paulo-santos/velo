@@ -1,0 +1,9 @@
+name = "theme-waybar"
+display_label = "Waybar"
+type = "select"
+depends = ["waybar"]
+list_cmd = "ls -1 ~/.config/waybar/profiles/"
+format = "lines"
+as = "profile"
+template = "~/.config/waybar/scripts/waybar-profile.sh {profile}"
+execution_type = "exec"

@@ -1828,23 +1828,32 @@ static void read_clipboard(struct tofi *tofi)
 }
 
 /*
- * Calculate the ideal window height for autosize mode based on the
- * current number of results. Clamped to max_window_height.
+ * Calculate the ideal window height for autosize mode.
+ * Sizes to exact row boundaries — no partial-row gap at the bottom.
  */
 static uint32_t autosize_calc_height(struct tofi *tofi)
 {
-	int32_t ideal = tofi->view_layout.result_start_y
-		+ tofi->view_theme.padding_bottom
+	int32_t bottom = tofi->view_theme.padding_bottom
 		+ tofi->view_theme.border_width
 		+ (int32_t)(ceil(MAX((double)tofi->view_theme.corner_radius
-			- tofi->view_theme.border_width, 0) * (1.0 - 1.0 / M_SQRT2)))
-		+ 2; /* safety margin to prevent last result clipping */
-	if (tofi->view_state.results.count > 0) {
-		ideal += (int32_t)(tofi->view_state.results.count
-			* tofi->view_layout.result_row_height);
+			- tofi->view_theme.border_width, 0) * (1.0 - 1.0 / M_SQRT2)));
+
+	int32_t overhead = tofi->view_layout.result_start_y + bottom;
+	int32_t row_h = tofi->view_layout.result_row_height;
+
+	if (tofi->view_state.results.count == 0 || row_h <= 0) {
+		return MAX(1, overhead);
 	}
-	if (ideal < 1) ideal = 1;
-	return MIN((uint32_t)ideal, tofi->max_window_height);
+
+	int32_t available = (int32_t)tofi->max_window_height - overhead;
+	if (available <= 0) {
+		return MAX(1, overhead);
+	}
+
+	uint32_t rows_that_fit = available / row_h;
+	uint32_t rows = MIN(rows_that_fit, tofi->view_state.results.count);
+
+	return overhead + rows * row_h;
 }
 
 int main(int argc, char *argv[])

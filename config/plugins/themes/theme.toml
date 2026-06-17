@@ -1,0 +1,5 @@
+name = "theme"
+display_label = "Themes"
+type = "list"
+global = true
+children = ["theme-tofi", "theme-kitty", "theme-waybar", "theme-hyprland"]

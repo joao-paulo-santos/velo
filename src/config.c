@@ -392,6 +392,14 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 			tofi->view_theme.padding_left = val;
 			tofi->view_theme.padding_right = val;
 		}
+	} else if (strcasecmp(option, "padding-top") == 0) {
+		tofi->view_theme.padding_top = parse_uint32(filename, lineno, value, &err);
+	} else if (strcasecmp(option, "padding-bottom") == 0) {
+		tofi->view_theme.padding_bottom = parse_uint32(filename, lineno, value, &err);
+	} else if (strcasecmp(option, "padding-left") == 0) {
+		tofi->view_theme.padding_left = parse_uint32(filename, lineno, value, &err);
+	} else if (strcasecmp(option, "padding-right") == 0) {
+		tofi->view_theme.padding_right = parse_uint32(filename, lineno, value, &err);
 	} else if (strcasecmp(option, "plugins") == 0) {
 		plugin_apply_filter(value);
 	} else if (strcasecmp(option, "theme") == 0) {

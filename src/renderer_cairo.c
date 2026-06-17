@@ -2,6 +2,7 @@
 #include <math.h>
 #include <pango/pangocairo.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include "renderer.h"
 #include "view.h"
 #include "log.h"
@@ -126,7 +127,7 @@ static bool size_overflows(struct cairo_priv *priv, cairo_t *cr, int32_t height)
 {
 	cairo_matrix_t mat;
 	cairo_get_matrix(cr, &mat);
-	return (mat.y0 - priv->clip_y + height > priv->clip_height);
+	return (mat.y0 - priv->clip_y + height > priv->clip_height + 1);
 }
 
 /*
@@ -197,6 +198,25 @@ static void draw_background_and_clip(struct cairo_priv *priv, cairo_t *cr,
 	priv->clip_y = dx + theme->border_width + theme->padding_top;
 	priv->clip_width = w;
 	priv->clip_height = h;
+
+	if (getenv("HYPR_TOFI_DEBUG")) {
+		cairo_save(cr);
+		cairo_reset_clip(cr);
+		cairo_identity_matrix(cr);
+		cairo_set_line_width(cr, 1);
+
+		cairo_rectangle(cr, priv->clip_x, priv->clip_y, priv->clip_width, priv->clip_height);
+		cairo_set_source_rgba(cr, 0, 1, 0, 0.5);
+		cairo_stroke(cr);
+
+		cairo_rectangle(cr, theme->border_width, theme->border_width,
+			priv->scaled_width - 2 * theme->border_width,
+			scaled_height - 2 * theme->border_width);
+		cairo_set_source_rgba(cr, 1, 0, 0, 0.5);
+		cairo_stroke(cr);
+
+		cairo_restore(cr);
+	}
 }
 
 static void setup_cairo_surfaces(struct cairo_priv *priv, uint8_t *buffer,
