@@ -1,0 +1,5 @@
+name = "test-ks-static"
+display_label = "Static Result"
+type = "exec"
+template = "notify-send test 'Static result executed'"
+execution_type = "exec"

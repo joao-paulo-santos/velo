@@ -1,0 +1,9 @@
+name = "tmux"
+display_label = "Tmux"
+display_prefix = ""
+context_name = "Tmux"
+type = "list"
+global = true
+teleport = true
+depends = ["tmux"]
+children = ["tmux-attach", "tmux-close", "tmux-new", "tmux-freeze", "tmux-unfreeze", "tmux-cold-storage"]

@@ -1,0 +1,7 @@
+name = "test-ks-input"
+display_label = "Text Input"
+type = "input"
+prompt = "Enter text: "
+as = "text"
+template = "notify-send test 'You entered: {text}'"
+execution_type = "exec"

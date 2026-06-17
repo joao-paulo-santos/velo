@@ -1,0 +1,8 @@
+name = "tmux-close"
+display_label = "Close"
+type = "select"
+list_cmd = "tmux list-sessions -F '#{session_name}'"
+format = "lines"
+as = "session"
+template = "tmux kill-session -t {session}"
+execution_type = "exec"

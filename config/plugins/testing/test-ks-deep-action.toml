@@ -1,0 +1,5 @@
+name = "test-ks-deep-action"
+display_label = "Deep Action"
+type = "exec"
+template = "notify-send test 'Deep action executed'"
+execution_type = "exec"

@@ -1,0 +1,11 @@
+name = "url"
+display_label = "Open URL"
+display_prefix = ""
+context_name = "Open URL"
+type = "input"
+global = true
+teleport = true
+prompt = "URL: "
+as = "url"
+template = "bash -c 'u=\"{url}\"; [[ \"$u\" == http* ]] || u=\"https://$u\"; xdg-open \"$u\"'"
+execution_type = "exec"

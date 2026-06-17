@@ -1,0 +1,13 @@
+name = "drun"
+display_label = "Launch"
+display_prefix = ""
+type = "select"
+global = true
+teleport = true
+list_cmd = "@apps"
+format = "json"
+label_field = "name"
+value_field = "id"
+as = "selection"
+template = "@launch {selection}"
+execution_type = "exec"

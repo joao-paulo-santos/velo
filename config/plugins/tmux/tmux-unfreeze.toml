@@ -1,0 +1,9 @@
+name = "tmux-unfreeze"
+display_label = "Unfreeze"
+type = "select"
+depends = ["tmux-fridge"]
+list_cmd = "tmux-fridge list-frozen"
+format = "lines"
+as = "workspace"
+template = "tmux-fridge unfreeze {workspace}"
+execution_type = "exec"

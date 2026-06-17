@@ -1,0 +1,10 @@
+name = "tmux-attach"
+display_label = "Attach"
+type = "select"
+teleport = true
+depends = ["tmux-fridge"]
+list_cmd = "tmux list-sessions -F '#{session_name}'"
+format = "lines"
+as = "session"
+template = "tmux-fridge attach {session}"
+execution_type = "exec"

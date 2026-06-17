@@ -1,0 +1,8 @@
+name = "test-ks-select"
+display_label = "Select Item"
+type = "select"
+list_cmd = "echo -e 'Option A\\nOption B\\nOption C'"
+format = "lines"
+as = "choice"
+template = "notify-send test 'Selected: {choice}'"
+execution_type = "exec"

@@ -1,0 +1,5 @@
+name = "tmux-cold-storage"
+display_label = "Cold Storage"
+type = "list"
+depends = ["tmux-fridge"]
+children = ["tmux-cold-recover", "tmux-cold-delete"]

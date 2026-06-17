@@ -1,0 +1,5 @@
+name = "test-menu"
+display_label = "Test Kitchen Sink"
+type = "list"
+global = true
+children = ["test-ks-static", "test-ks-input", "test-ks-select", "test-ks-deep"]

@@ -1,0 +1,9 @@
+name = "wifi"
+display_label = "Wifi"
+display_prefix = ""
+context_name = "Wifi"
+type = "list"
+global = true
+teleport = true
+depends = ["nmcli"]
+children = ["wifi-connect", "wifi-reconnect", "wifi-forget"]

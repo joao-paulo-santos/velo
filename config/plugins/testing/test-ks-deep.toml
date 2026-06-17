@@ -1,0 +1,4 @@
+name = "test-ks-deep"
+display_label = "Deep Navigation"
+type = "list"
+children = ["test-ks-deep-action", "test-ks-deep-input"]

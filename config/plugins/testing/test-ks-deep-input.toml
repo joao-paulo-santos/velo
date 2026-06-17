@@ -1,0 +1,7 @@
+name = "test-ks-deep-input"
+display_label = "Deep Input"
+type = "input"
+prompt = "Deep input: "
+as = "deep"
+template = "notify-send test 'Deep: {deep}'"
+execution_type = "exec"

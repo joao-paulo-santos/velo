@@ -1,0 +1,7 @@
+name = "hyprland"
+display_label = "Window Management"
+display_prefix = ""
+context_name = "Window Management"
+type = "list"
+global = true
+children = ["hyprland-focus", "hyprland-workspace"]
