@@ -58,7 +58,7 @@ to teleport directly to it (e.g. *calc:*, *tmux:*, *url:*).
 	Input mode. Show a text entry prompt, print the typed text to stdout
 	on Enter. Cannot be combined with *-e*, *-p*, or *--pick*.
 
-	Example: *hypr-tofi --input --prompt-text "Password: "* > /tmp/pw*
+	Example: *hypr-tofi --input --prompt-text 'Password: '* > /tmp/pw
 
 	Exit codes: 0 on submit, 1 on Escape/close.
 
