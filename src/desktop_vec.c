@@ -122,65 +122,9 @@ static int cmpdesktopp(const void *restrict a, const void *restrict b)
 	return strcmp(d1->name, d2->name);
 }
 
-static int cmpscorep(const void *restrict a, const void *restrict b)
-{
-	struct scored_string *restrict str1 = (struct scored_string *)a;
-	struct scored_string *restrict str2 = (struct scored_string *)b;
-
-	int hist_diff = str2->history_score - str1->history_score;
-	int search_diff = str2->search_score - str1->search_score;
-	return hist_diff + search_diff;
-}
-
 void desktop_vec_sort(struct desktop_vec *restrict vec)
 {
 	qsort(vec->buf, vec->count, sizeof(vec->buf[0]), cmpdesktopp);
-}
-
-struct desktop_entry *desktop_vec_find_sorted(struct desktop_vec *restrict vec, const char *name)
-{
-	/*
-	 * Explicitly cast away const-ness, as even though we won't modify the
-	 * name, the compiler rightly complains that we might.
-	 */
-	struct desktop_entry tmp = { .name = (char *)name };
-	return bsearch(&tmp, vec->buf, vec->count, sizeof(vec->buf[0]), cmpdesktopp);
-}
-
-struct string_ref_vec desktop_vec_filter(
-		const struct desktop_vec *restrict vec,
-		const char *restrict substr,
-		enum matching_algorithm algorithm)
-{
-	struct string_ref_vec filt = string_ref_vec_create();
-	for (size_t i = 0; i < vec->count; i++) {
-		int32_t search_score;
-		search_score = match_words(algorithm, substr, vec->buf[i].name);
-		if (search_score != INT32_MIN) {
-			string_ref_vec_add(&filt, vec->buf[i].name);
-			/* Store the score of the match for later sorting. */
-			filt.buf[filt.count - 1].search_score = search_score;
-			filt.buf[filt.count - 1].history_score = vec->buf[i].history_score;
-		} else {
-			/* If we didn't match the name, check the keywords. */
-			search_score = match_words(algorithm, substr, vec->buf[i].keywords);
-			if (search_score != INT32_MIN) {
-				string_ref_vec_add(&filt, vec->buf[i].name);
-				/*
-				 * Arbitrary score addition to make name
-				 * matches preferred over keyword matches.
-				 */
-				filt.buf[filt.count - 1].search_score = search_score - 20;
-				filt.buf[filt.count - 1].history_score = vec->buf[i].history_score;
-			}
-		}
-	}
-	/*
-	 * Sort the results by this search_score. This moves matches at the beginnings
-	 * of words to the front of the result list.
-	 */
-	qsort(filt.buf, filt.count, sizeof(filt.buf[0]), cmpscorep);
-	return filt;
 }
 
 struct desktop_vec desktop_vec_load(FILE *file)

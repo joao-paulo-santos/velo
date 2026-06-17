@@ -396,14 +396,16 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 		plugin_apply_filter(value);
 	} else if (strcasecmp(option, "theme") == 0) {
 		snprintf(tofi->theme_name, N_ELEM(tofi->theme_name), "%s", value);
+	} else if (strcasecmp(option, "autosize") == 0) {
+		if (strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0 || strcasecmp(value, "1") == 0) {
+			tofi->autosize = true;
+		}
 	} else {
 		PARSE_ERROR(filename, lineno, "Unknown option \"%s\"\n", option);
 		err = true;
 	}
 	return !err;
 }
-
-static char *get_config_path();
 
 static char *resolve_theme_path(const char *theme_name)
 {

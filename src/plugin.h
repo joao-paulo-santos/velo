@@ -69,7 +69,6 @@ struct plugin {
 	bool is_builtin;
 	plugin_populate_fn populate_fn;
 
-	bool loaded;
 	bool enabled;
 	bool deps_satisfied;
 };
@@ -77,7 +76,6 @@ struct plugin {
 void plugin_init(void);
 void plugin_destroy(void);
 
-void plugin_register_builtin(struct plugin *plugin);
 void plugin_load_directory(const char *path);
 struct plugin *plugin_get(const char *name);
 size_t plugin_count(void);

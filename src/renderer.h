@@ -7,7 +7,6 @@
 #include <stddef.h>
 
 struct renderer {
-	const char *name;
 	void *priv;
 	
 	bool (*init)(struct renderer *r, uint8_t *buffer, uint32_t width, uint32_t height, double scale,

@@ -63,17 +63,10 @@ struct string_ref_vec string_ref_vec_copy(const struct string_ref_vec *restrict 
 
 void string_ref_vec_add(struct string_ref_vec *restrict vec, char *restrict str);
 
-void string_vec_uniq(struct string_vec *restrict vec);
-
-struct scored_string_ref *string_ref_vec_find_sorted(struct string_ref_vec *restrict vec, const char *str);
-
 [[nodiscard("memory leaked")]]
 struct string_ref_vec string_ref_vec_filter(
 		const struct string_ref_vec *restrict vec,
 		const char *restrict substr,
 		enum matching_algorithm algorithm);
-
-[[nodiscard("memory leaked")]]
-struct string_ref_vec string_ref_vec_from_buffer(char *buffer);
 
 #endif /* STRING_VEC_H */

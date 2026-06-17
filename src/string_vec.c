@@ -122,26 +122,7 @@ void string_vec_sort(struct string_vec *restrict vec)
 	qsort(vec->buf, vec->count, sizeof(vec->buf[0]), cmpstringp);
 }
 
-void string_vec_uniq(struct string_vec *restrict vec)
-{
-	size_t count = vec->count;
-	for (size_t i = 1; i < vec->count; i++) {
-		if (!strcmp(vec->buf[i].string, vec->buf[i-1].string)) {
-			free(vec->buf[i-1].string);
-			vec->buf[i-1].string = NULL;
-			count--;
-		}
-	}
-	string_vec_sort(vec);
-	vec->count = count;
-}
-
 struct scored_string *string_vec_find_sorted(struct string_vec *restrict vec, const char * str)
-{
-	return bsearch(&str, vec->buf, vec->count, sizeof(vec->buf[0]), cmpstringp);
-}
-
-struct scored_string_ref *string_ref_vec_find_sorted(struct string_ref_vec *restrict vec, const char * str)
 {
 	return bsearch(&str, vec->buf, vec->count, sizeof(vec->buf[0]), cmpstringp);
 }
@@ -167,17 +148,4 @@ struct string_ref_vec string_ref_vec_filter(
 	/* Sort the results by their search score. */
 	qsort(filt.buf, filt.count, sizeof(filt.buf[0]), cmpscorep);
 	return filt;
-}
-
-struct string_ref_vec string_ref_vec_from_buffer(char *buffer)
-{
-	struct string_ref_vec vec = string_ref_vec_create();
-
-	char *saveptr = NULL;
-	char *line = strtok_r(buffer, "\n", &saveptr);
-	while (line != NULL) {
-		string_ref_vec_add(&vec, line);
-		line = strtok_r(NULL, "\n", &saveptr);
-	}
-	return vec;
 }

@@ -18,11 +18,6 @@ uint32_t utf8_to_utf32_validate(const char *s)
 	return g_utf8_get_char_validated(s, -1);
 }
 
-uint32_t *utf8_string_to_utf32_string(const char *s)
-{
-	return g_utf8_to_ucs4_fast(s, -1, NULL);
-}
-
 uint32_t utf32_isprint(uint32_t c)
 {
 	return g_unichar_isprint(c);
@@ -48,25 +43,6 @@ uint32_t utf32_isalnum(uint32_t c)
 	return g_unichar_isalnum(c);
 }
 
-uint32_t utf32_toupper(uint32_t c)
-{
-	return g_unichar_toupper(c);
-}
-
-uint32_t utf32_tolower(uint32_t c)
-{
-	return g_unichar_tolower(c);
-}
-
-size_t utf32_strlen(const uint32_t *s)
-{
-	size_t len = 0;
-	while (s[len] != U'\0') {
-		len++;
-	}
-	return len;
-}
-
 char *utf8_next_char(const char *s)
 {
 	return g_utf8_next_char(s);
@@ -75,11 +51,6 @@ char *utf8_next_char(const char *s)
 char *utf8_prev_char(const char *s)
 {
 	return g_utf8_prev_char(s);
-}
-
-char *utf8_strchr(const char *s, uint32_t c)
-{
-	return g_utf8_strchr(s, -1, c);
 }
 
 char *utf8_strcasechr(const char *s, uint32_t c)
@@ -124,11 +95,6 @@ char *utf8_strcasestr(const char * restrict haystack, const char * restrict need
 char *utf8_normalize(const char *s)
 {
 	return g_utf8_normalize(s, -1, G_NORMALIZE_DEFAULT);
-}
-
-char *utf8_compose(const char *s)
-{
-	return g_utf8_normalize(s, -1, G_NORMALIZE_DEFAULT_COMPOSE);
 }
 
 bool utf8_validate(const char *s)

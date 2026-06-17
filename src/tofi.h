@@ -66,7 +66,6 @@ struct tofi {
 		uint32_t height;
 		uint32_t scale;
 		uint32_t fractional_scale;
-		int32_t transform;
 		int32_t margin_top;
 		int32_t margin_bottom;
 		int32_t margin_left;
@@ -112,6 +111,8 @@ struct tofi {
 	bool picker_mode;
 	bool input_mode;
 	char pipe_output[256];
+	bool autosize;
+	uint32_t max_window_height;
 	uint32_t anchor;
 	bool use_scale;
 	char target_output_name[MAX_OUTPUT_NAME_LEN];

@@ -45,24 +45,7 @@ struct action_def {
 
 	char as[NAV_KEY_MAX];
 	char template[NAV_TEMPLATE_MAX];
-
-	char prompt[NAV_PROMPT_MAX];
-	bool sensitive;
-
-	char list_cmd[NAV_CMD_MAX];
-	format_t format;
-	char label_field[NAV_FIELD_MAX];
-	char value_field[NAV_FIELD_MAX];
-
 	char plugin_ref[NAV_NAME_MAX];
-
-	char eval_cmd[NAV_CMD_MAX];
-	char display_input[NAV_TEMPLATE_MAX];
-	char display_result[NAV_TEMPLATE_MAX];
-	bool show_input;
-	int history_limit;
-	bool persist_history;
-	char history_name[NAV_NAME_MAX];
 };
 
 struct nav_result {
@@ -128,14 +111,9 @@ const char *dict_get(struct value_dict *dict, const char *key);
 void dict_set(struct value_dict **dict, const char *key, const char *value);
 void dict_destroy(struct value_dict *dict);
 
-struct action_def *action_def_create(void);
-struct action_def *action_def_copy(struct action_def *src);
-void action_def_destroy(struct action_def *action);
-
 struct nav_result *nav_result_create(void);
 void nav_result_destroy(struct nav_result *result);
 void nav_results_destroy(struct wl_list *results);
-struct nav_result *nav_results_copy_single(struct nav_result *src);
 void nav_results_copy(struct wl_list *dest, struct wl_list *src);
 
 struct feedback_entry *feedback_entry_create(void);

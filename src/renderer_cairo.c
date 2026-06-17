@@ -17,6 +17,7 @@ struct cairo_priv {
 	int buffer_index;
 	PangoLayout *pango_layout;
 	uint32_t clip_x, clip_y, clip_width, clip_height;
+	uint32_t scaled_width, scaled_height;
 	struct view_theme *theme;
 	uint32_t stride;
 };
@@ -29,22 +30,6 @@ static void rounded_rectangle(cairo_t *cr, uint32_t width, uint32_t height, uint
 	cairo_arc(cr, width - r, height - r, r, 0, M_PI_2);
 	cairo_arc(cr, r, height - r, r, M_PI_2, M_PI);
 	cairo_close_path(cr);
-}
-
-static void apply_text_theme_fallback(struct text_theme *theme, const struct text_theme *fallback)
-{
-	if (!theme->foreground_specified) {
-		theme->foreground_color = fallback->foreground_color;
-	}
-	if (!theme->background_specified) {
-		theme->background_color = fallback->background_color;
-	}
-	if (!theme->padding_specified) {
-		theme->padding = fallback->padding;
-	}
-	if (!theme->radius_specified) {
-		theme->background_corner_radius = fallback->background_corner_radius;
-	}
 }
 
 static void render_text_themed(
@@ -144,17 +129,87 @@ static bool size_overflows(struct cairo_priv *priv, cairo_t *cr, int32_t height)
 	return (mat.y0 - priv->clip_y + height > priv->clip_height);
 }
 
-static bool cairo_init(struct renderer *r, uint8_t *buffer, uint32_t width, uint32_t height, double scale,
-                       struct view_theme *theme)
+/*
+ * Draw the background (rounded rectangle), border, clear corners to
+ * transparency, and set up the content clip rectangle.
+ *
+ * Caller must ensure the cairo context has no active clip and an
+ * identity matrix (or has saved/restored appropriately).
+ *
+ * Updates priv->clip_x/y/width/height to the content area.
+ */
+static void draw_background_and_clip(struct cairo_priv *priv, cairo_t *cr,
+                                     struct view_theme *theme,
+                                     uint32_t scaled_width, uint32_t scaled_height)
 {
-	struct cairo_priv *priv = xcalloc(1, sizeof(*priv));
-	r->priv = priv;
-	priv->theme = theme;
-	priv->buffer_index = 0;
+	/* Clear entire surface to transparent. */
+	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+	cairo_set_source_rgba(cr, 0, 0, 0, 0);
+	cairo_paint(cr);
+
+	/* Background fill. */
+	struct color bg = theme->background_color;
+	cairo_set_source_rgba(cr, bg.r, bg.g, bg.b, bg.a);
+	rounded_rectangle(cr, scaled_width, scaled_height, theme->corner_radius);
+	cairo_fill(cr);
+
+	/* Border stroke (preserve path for corner clear). */
+	cairo_set_line_width(cr, 2 * theme->border_width);
+	rounded_rectangle(cr, scaled_width, scaled_height, theme->corner_radius);
+	struct color ac = theme->accent_color;
+	cairo_set_source_rgba(cr, ac.r, ac.g, ac.b, ac.a);
+	cairo_stroke_preserve(cr);
+
+	/* Clear outside the rounded rectangle to transparency.
+	 * Use priv->scaled_height (full buffer) rather than the parameter,
+	 * so in autosize mode the area below the dynamic height is also
+	 * cleared — the border stroke extends border_width pixels past
+	 * the path, which would otherwise be visible on the taller buffer. */
+	cairo_rectangle(cr, 0, 0, priv->scaled_width + 1, priv->scaled_height + 1);
+	cairo_set_source_rgba(cr, 0, 0, 0, 1);
+	cairo_save(cr);
+	cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
+	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+	cairo_fill(cr);
+	cairo_restore(cr);
+
+	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+	/* Set up content clip: border + padding + corner inset. */
+	double dx = theme->border_width;
+	cairo_translate(cr, dx, dx);
+	uint32_t w = scaled_width - 2 * dx;
+	uint32_t h = scaled_height - 2 * dx;
+
+	cairo_translate(cr, theme->padding_left, theme->padding_top);
+	w -= theme->padding_left + theme->padding_right;
+	h -= theme->padding_top + theme->padding_bottom;
+
+	double inner_radius = MAX((double)theme->corner_radius - theme->border_width, 0);
+	dx = ceil(inner_radius * (1.0 - 1.0 / M_SQRT2));
+	cairo_translate(cr, dx, dx);
+	w -= 2 * dx;
+	h -= 2 * dx;
+	cairo_rectangle(cr, 0, 0, w, h);
+	cairo_clip(cr);
+
+	priv->clip_x = dx + theme->border_width + theme->padding_left;
+	priv->clip_y = dx + theme->border_width + theme->padding_top;
+	priv->clip_width = w;
+	priv->clip_height = h;
+}
+
+static void setup_cairo_surfaces(struct cairo_priv *priv, uint8_t *buffer,
+                                uint32_t width, uint32_t height, double scale,
+                                struct view_theme *theme)
+{
 	priv->stride = width * sizeof(uint32_t);
 
 	uint32_t scaled_width = scale_apply_inverse(width, scale * 120);
 	uint32_t scaled_height = scale_apply_inverse(height, scale * 120);
+
+	priv->scaled_width = scaled_width;
+	priv->scaled_height = scaled_height;
 
 	priv->surfaces[0] = cairo_image_surface_create_for_data(
 		buffer,
@@ -174,74 +229,36 @@ static bool cairo_init(struct renderer *r, uint8_t *buffer, uint32_t width, uint
 	cairo_surface_set_device_scale(priv->surfaces[1], scale, scale);
 	priv->contexts[1] = cairo_create(priv->surfaces[1]);
 
-	cairo_matrix_t mat;
 	for (int buf_idx = 0; buf_idx < 2; buf_idx++) {
 		cairo_t *cr = priv->contexts[buf_idx];
-
-		struct color color = theme->background_color;
-		cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
-		cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-		cairo_paint(cr);
-
-		cairo_set_line_width(cr, 2 * theme->border_width);
-		rounded_rectangle(cr, scaled_width, scaled_height, theme->corner_radius);
-
-		color = theme->accent_color;
-		cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
-		cairo_stroke_preserve(cr);
-
-		cairo_rectangle(cr, 0, 0, scaled_width + 1, scaled_height + 1);
-		cairo_set_source_rgba(cr, 0, 0, 0, 1);
-		cairo_save(cr);
-		cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
-		cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-		cairo_fill(cr);
-		cairo_restore(cr);
-
-		cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-
-		double dx = theme->border_width;
-		cairo_translate(cr, dx, dx);
-		uint32_t w = scaled_width - 2 * dx;
-		uint32_t h = scaled_height - 2 * dx;
-
-		cairo_translate(cr, theme->padding_left, theme->padding_top);
-		w -= theme->padding_left + theme->padding_right;
-		h -= theme->padding_top + theme->padding_bottom;
-
-		double inner_radius = MAX((double)theme->corner_radius - theme->border_width, 0);
-		dx = ceil(inner_radius * (1.0 - 1.0 / M_SQRT2));
-		cairo_translate(cr, dx, dx);
-		w -= 2 * dx;
-		h -= 2 * dx;
-		cairo_rectangle(cr, 0, 0, w, h);
-		cairo_clip(cr);
-
-		if (buf_idx == 0) {
-			cairo_get_matrix(cr, &mat);
-			priv->clip_x = mat.x0;
-			priv->clip_y = mat.y0;
-			priv->clip_width = w;
-			priv->clip_height = h;
-		}
+		draw_background_and_clip(priv, cr, theme, scaled_width, scaled_height);
 	}
+}
 
+static void setup_pango(struct cairo_priv *priv, struct view_theme *theme)
+{
 	cairo_t *cr = priv->contexts[0];
 	priv->pango_layout = pango_cairo_create_layout(cr);
 	PangoFontDescription *desc = pango_font_description_from_string(theme->font_name);
 	pango_font_description_set_size(desc, theme->font_size * PANGO_SCALE);
 	pango_layout_set_font_description(priv->pango_layout, desc);
 	pango_font_description_free(desc);
+}
 
-	const struct text_theme default_theme = {
-		.foreground_color = theme->foreground_color,
-		.background_color = (struct color) { .a = 0 },
-		.padding = (struct directional) {0},
-		.background_corner_radius = 0
-	};
-	apply_text_theme_fallback(&theme->prompt_theme, &default_theme);
-	apply_text_theme_fallback(&theme->input_theme, &default_theme);
-	apply_text_theme_fallback(&theme->result_theme, &default_theme);
+static bool cairo_init(struct renderer *r, uint8_t *buffer, uint32_t width, uint32_t height, double scale,
+                       struct view_theme *theme)
+{
+	struct cairo_priv *priv = xcalloc(1, sizeof(*priv));
+	r->priv = priv;
+	priv->theme = theme;
+	priv->buffer_index = 0;
+
+	setup_cairo_surfaces(priv, buffer, width, height, scale, theme);
+	setup_pango(priv, theme);
+
+	theme->prompt_theme.foreground_color = theme->foreground_color;
+	theme->input_theme.foreground_color = theme->foreground_color;
+	theme->result_theme.foreground_color = theme->foreground_color;
 
 	return true;
 }
@@ -274,12 +291,23 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 
 	cairo_t *cr = priv->contexts[priv->buffer_index];
 
-	struct color color = theme->background_color;
-	cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
-	cairo_save(cr);
-	cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-	cairo_paint(cr);
-	cairo_restore(cr);
+	uint32_t eff_h = state->render_height > 0
+		? state->render_height
+		: priv->scaled_height;
+
+	if (state->render_height > 0) {
+		cairo_save(cr);
+		cairo_reset_clip(cr);
+		cairo_identity_matrix(cr);
+		draw_background_and_clip(priv, cr, theme, priv->scaled_width, eff_h);
+	} else {
+		struct color color = theme->background_color;
+		cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
+		cairo_save(cr);
+		cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+		cairo_paint(cr);
+		cairo_restore(cr);
+	}
 
 	cairo_save(cr);
 
@@ -287,7 +315,6 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 
 	render_text_themed(cr, priv, state->prompt, &theme->prompt_theme, &ink_rect, &logical_rect);
 	cairo_translate(cr, logical_rect.width + logical_rect.x, 0);
-	cairo_translate(cr, theme->prompt_padding, 0);
 
 	if (state->input_utf8_length == 0) {
 		render_input(cr, priv, "", &theme->input_theme, &ink_rect, &logical_rect);
@@ -303,7 +330,6 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 	} else {
 		render_input(cr, priv, state->input_utf8, &theme->input_theme, &ink_rect, &logical_rect);
 	}
-	logical_rect.width = MAX(logical_rect.width, (int)theme->input_width);
 
 	cairo_translate(cr, 0, logical_rect.height);
 	cairo_matrix_t mat;
@@ -311,7 +337,7 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 	mat.x0 = priv->clip_x;
 	cairo_set_matrix(cr, &mat);
 
-	uint32_t num_results = theme->num_results == 0 ? state->results.count : MIN(theme->num_results, state->results.count);
+	uint32_t num_results = state->results.count;
 
 	if (num_results > 0) {
 		cairo_translate(cr, 0, 2);
@@ -330,10 +356,6 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 
 	size_t i;
 	for (i = 0; i < num_results; i++) {
-		if (i >= theme->num_results && theme->num_results > 0) {
-			break;
-		}
-
 		size_t index = i + state->first_result;
 		if (index >= state->results.count) break;
 
@@ -343,9 +365,7 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 		pango_cairo_update_layout(cr, priv->pango_layout);
 		pango_layout_get_pixel_extents(priv->pango_layout, &ink_rect, &logical_rect);
 
-		if (theme->num_results == 0) {
-			if (size_overflows(priv, cr, logical_rect.height)) break;
-		}
+		if (size_overflows(priv, cr, logical_rect.height)) break;
 
 		if (i == state->selection) {
 			struct color sel_color = theme->accent_color;
@@ -355,18 +375,20 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 			render_text_themed(cr, priv, result, &theme->result_theme, &ink_rect, &logical_rect);
 		}
 
-		if (!theme->horizontal) {
-			if (i == 0) {
-				layout->result_row_height = logical_rect.height + theme->result_spacing;
-			}
-			if (i + 1 < num_results) {
-				cairo_translate(cr, 0, logical_rect.height + theme->result_spacing);
-			}
+		if (i == 0) {
+			layout->result_row_height = logical_rect.height;
+		}
+		if (i + 1 < num_results) {
+			cairo_translate(cr, 0, logical_rect.height);
 		}
 	}
 	state->num_results_drawn = i;
 
 	cairo_restore(cr);
+
+	if (state->render_height > 0) {
+		cairo_restore(cr);
+	}
 }
 
 static void cairo_end_frame(struct renderer *r)
@@ -379,7 +401,6 @@ static void cairo_end_frame(struct renderer *r)
 struct renderer *renderer_cairo_create(void)
 {
 	struct renderer *r = xcalloc(1, sizeof(*r));
-	r->name = "cairo";
 	r->init = cairo_init;
 	r->destroy = renderer_cairo_destroy;
 	r->begin_frame = cairo_begin_frame;

@@ -5,7 +5,6 @@
 
 struct desktop_vec drun_generate(void);
 struct desktop_vec drun_generate_cached(void);
-void drun_print(const char *filename, const char *terminal_command);
 void drun_launch(const char *filename);
 
 #endif /* DRUN_H */

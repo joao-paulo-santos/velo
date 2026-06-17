@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <linux/input-event-codes.h>
 #include <locale.h>
+#include <math.h>
 #include <poll.h>
 #include <spawn.h>
 #include <stdbool.h>
@@ -1826,6 +1827,26 @@ static void read_clipboard(struct tofi *tofi)
 	tofi->window.surface.redraw = true;
 }
 
+/*
+ * Calculate the ideal window height for autosize mode based on the
+ * current number of results. Clamped to max_window_height.
+ */
+static uint32_t autosize_calc_height(struct tofi *tofi)
+{
+	int32_t ideal = tofi->view_layout.result_start_y
+		+ tofi->view_theme.padding_bottom
+		+ tofi->view_theme.border_width
+		+ (int32_t)(ceil(MAX((double)tofi->view_theme.corner_radius
+			- tofi->view_theme.border_width, 0) * (1.0 - 1.0 / M_SQRT2)))
+		+ 2; /* safety margin to prevent last result clipping */
+	if (tofi->view_state.results.count > 0) {
+		ideal += (int32_t)(tofi->view_state.results.count
+			* tofi->view_layout.result_row_height);
+	}
+	if (ideal < 1) ideal = 1;
+	return MIN((uint32_t)ideal, tofi->max_window_height);
+}
+
 int main(int argc, char *argv[])
 {
 	/* Call log_debug to initialise the timers we use for perf checking. */
@@ -2105,7 +2126,6 @@ int main(int argc, char *argv[])
 				tofi.output_height = el->height;
 		}
 		tofi.window.scale = el->scale;
-		tofi.window.transform = el->transform;
 		log_unindent();
 		log_debug("Selected output %s.\n", el->name);
 	}
@@ -2115,6 +2135,21 @@ int main(int argc, char *argv[])
 	 * the output size and scale.
 	 */
 	config_fixup_values(&tofi);
+
+	if (tofi.autosize) {
+		tofi.max_window_height = tofi.window.height;
+
+		tofi.anchor = (tofi.anchor | ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)
+			& ~ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+
+		int32_t available = tofi.output_height - tofi.window.margin_top - tofi.window.margin_bottom;
+		tofi.window.margin_top = tofi.window.margin_top
+			+ (available - (int32_t)tofi.window.height) / 2;
+		tofi.window.margin_bottom = 0;
+
+		log_debug("Autosize: anchor=%u margin_top=%d output_h=%d max_h=%u\n",
+			tofi.anchor, tofi.window.margin_top, tofi.output_height, tofi.max_window_height);
+	}
 
 	log_debug("Loading plugin results.\n");
 	log_indent();
@@ -2408,6 +2443,15 @@ int main(int argc, char *argv[])
 
 	wl_display_roundtrip(tofi.wl_display);
 
+	if (tofi.autosize) {
+		tofi.view_state.render_height = autosize_calc_height(&tofi);
+
+		tofi.renderer->begin_frame(tofi.renderer);
+		tofi.renderer->render(tofi.renderer, &tofi.view_state, &tofi.view_theme, &tofi.view_layout);
+		tofi.renderer->end_frame(tofi.renderer);
+		surface_draw(&tofi.window.surface);
+	}
+
 	tofi.window.surface.redraw = false;
 
 	/*
@@ -2530,10 +2574,14 @@ int main(int argc, char *argv[])
 		wl_display_dispatch_pending(tofi.wl_display);
 
 		if (tofi.window.surface.redraw) {
+			if (tofi.autosize) {
+				tofi.view_state.render_height = autosize_calc_height(&tofi);
+			}
+
 			tofi.renderer->begin_frame(tofi.renderer);
 			tofi.renderer->render(tofi.renderer, &tofi.view_state, &tofi.view_theme, &tofi.view_layout);
 			tofi.renderer->end_frame(tofi.renderer);
-			
+
 			surface_draw(&tofi.window.surface);
 			tofi.window.surface.redraw = false;
 		}

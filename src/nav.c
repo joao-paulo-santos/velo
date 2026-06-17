@@ -93,36 +93,6 @@ void dict_destroy(struct value_dict *dict)
 	}
 }
 
-struct action_def *action_def_create(void)
-{
-	struct action_def *action = xcalloc(1, sizeof(*action));
-	action->selection_type = SELECTION_SELF;
-	action->execution_type = EXECUTION_EXEC;
-	action->show_input = true;
-	action->history_limit = 20;
-	action->persist_history = false;
-	return action;
-}
-
-struct action_def *action_def_copy(struct action_def *src)
-{
-	if (!src) {
-		return NULL;
-	}
-
-	struct action_def *copy = xcalloc(1, sizeof(*copy));
-	*copy = *src;
-	return copy;
-}
-
-void action_def_destroy(struct action_def *action)
-{
-	if (!action) {
-		return;
-	}
-	free(action);
-}
-
 struct nav_result *nav_result_create(void)
 {
 	struct nav_result *result = xcalloc(1, sizeof(*result));
@@ -148,20 +118,6 @@ void nav_results_destroy(struct wl_list *results)
 		wl_list_remove(&result->link);
 		nav_result_destroy(result);
 	}
-}
-
-struct nav_result *nav_results_copy_single(struct nav_result *src)
-{
-	if (!src) {
-		return NULL;
-	}
-
-	struct nav_result *copy = nav_result_create();
-	strncpy(copy->label, src->label, NAV_LABEL_MAX - 1);
-	strncpy(copy->value, src->value, NAV_VALUE_MAX - 1);
-	copy->action = src->action;
-
-	return copy;
 }
 
 void nav_results_copy(struct wl_list *dest, struct wl_list *src)

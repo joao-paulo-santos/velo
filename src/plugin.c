@@ -24,15 +24,6 @@ void plugin_init(void)
 	wl_list_init(&plugins);
 }
 
-void plugin_register_builtin(struct plugin *plugin)
-{
-	plugin->is_builtin = true;
-	plugin->loaded = true;
-	plugin->enabled = true;
-	plugin->deps_satisfied = true;
-	wl_list_insert(plugins.prev, &plugin->link);
-}
-
 void plugin_set_all_enabled(bool enabled)
 {
 	struct plugin *p;
@@ -294,7 +285,6 @@ static struct plugin *plugin_create(void)
 	p->global = false;
 	p->enabled = true;
 	p->is_builtin = false;
-	p->loaded = false;
 	p->deps_satisfied = false;
 	p->depends = NULL;
 	p->depends_count = 0;
@@ -396,7 +386,6 @@ static struct plugin *parse_toml_file(const char *path)
 	}
 
 	plugin->deps_satisfied = check_dependencies(plugin);
-	plugin->loaded = true;
 
 	return plugin;
 }
