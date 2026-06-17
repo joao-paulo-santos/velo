@@ -861,6 +861,7 @@ const struct option long_options[] = {
 	{"filter", required_argument, NULL, 'f'},
 	{"plugins", required_argument, NULL, 'p'},
 	{"entry", required_argument, NULL, 'e'},
+	{"theme", required_argument, NULL, 't'},
 	{"anchor", required_argument, NULL, 0},
 	{"background-color", required_argument, NULL, 0},
 	{"corner-radius", required_argument, NULL, 0},
@@ -880,12 +881,13 @@ const struct option long_options[] = {
 	{"padding", required_argument, NULL, 0},
 	{NULL, 0, NULL, 0}
 };
-const char *short_options = ":hc:f:p:e:";
+const char *short_options = ":hc:f:p:e:t:";
 
 static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
 {
 
 	bool load_default_config = true;
+	const char *cli_theme = NULL;
 	int option_index = 0;
 	*entry_plugin = NULL;
 	*plugin_list = NULL;
@@ -909,6 +911,8 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 			*plugin_list = optarg;
 		} else if (opt == 'e') {
 			*entry_plugin = optarg;
+		} else if (opt == 't') {
+			cli_theme = optarg;
 		} else if (opt == ':') {
 			log_error("Option %s requires an argument.\n", argv[optind - 1]);
 			usage(true);
@@ -927,6 +931,12 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 	if (load_default_config) {
 		config_load(tofi, NULL);
 	}
+
+	if (cli_theme) {
+		snprintf(tofi->theme_name, N_ELEM(tofi->theme_name), "%s", cli_theme);
+	}
+
+	config_load_theme(tofi);
 
 	/* Second pass, parse everything else. */
 	optind = 1;

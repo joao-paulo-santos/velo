@@ -1,0 +1,8 @@
+font = "Monospace"
+font-size = 14
+background-color = #282a36f2
+text-color = #f8f8f2
+accent-color = #ff79c6
+border-width = 2
+corner-radius = 8
+padding = 12

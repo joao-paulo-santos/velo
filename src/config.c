@@ -394,11 +394,55 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 		}
 	} else if (strcasecmp(option, "plugins") == 0) {
 		plugin_apply_filter(value);
+	} else if (strcasecmp(option, "theme") == 0) {
+		snprintf(tofi->theme_name, N_ELEM(tofi->theme_name), "%s", value);
 	} else {
 		PARSE_ERROR(filename, lineno, "Unknown option \"%s\"\n", option);
 		err = true;
 	}
 	return !err;
+}
+
+static char *get_config_path();
+
+static char *resolve_theme_path(const char *theme_name)
+{
+	const char *config_base = getenv("XDG_CONFIG_HOME");
+	char *fallback_base = NULL;
+	if (!config_base) {
+		const char *home = getenv("HOME");
+		if (home) {
+			size_t len = strlen(home) + strlen("/.config") + 1;
+			fallback_base = xmalloc(len);
+			snprintf(fallback_base, len, "%s/.config", home);
+			config_base = fallback_base;
+		}
+	}
+	if (config_base) {
+		char path[512];
+		snprintf(path, sizeof(path), "%s/hypr-tofi/themes/%s.toml", config_base, theme_name);
+		if (access(path, R_OK) == 0) {
+			free(fallback_base);
+			return xstrdup(path);
+		}
+	}
+	free(fallback_base);
+	return NULL;
+}
+
+void config_load_theme(struct tofi *tofi)
+{
+	if (tofi->theme_name[0] == '\0') {
+		return;
+	}
+	char *path = resolve_theme_path(tofi->theme_name);
+	if (!path) {
+		log_error("Theme '%s' not found.\n", tofi->theme_name);
+		return;
+	}
+	log_debug("Loading theme: %s\n", path);
+	config_load(tofi, path);
+	free(path);
 }
 
 bool config_apply(struct tofi *tofi, const char *option, const char *value)

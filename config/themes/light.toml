@@ -1,0 +1,8 @@
+font = "Sans"
+font-size = 16
+background-color = #ffffffe6
+text-color = #333333
+accent-color = #0066cc
+border-width = 1
+corner-radius = 10
+padding = 20

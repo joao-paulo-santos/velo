@@ -1,0 +1,8 @@
+font = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
+font-size = 14
+background-color = #1a1b26e6
+text-color = #FFFFFF
+accent-color = #00d9ff
+border-width = 2
+corner-radius = 3
+padding = 16

@@ -32,6 +32,24 @@ install_data(
   install_dir: config_location
 )
 
+themes_location = join_paths(
+  get_option('sysconfdir'),
+  'xdg',
+  'hypr-tofi',
+  'themes'
+)
+
+install_data(
+  files(
+    'config/themes/default.toml',
+    'config/themes/tokyo-night.toml',
+    'config/themes/dracula.toml',
+    'config/themes/light.toml',
+    'config/themes/cherry-blossom.toml'
+  ),
+  install_dir: themes_location
+)
+
 license_dir = join_paths(
   get_option('datadir'),
   'licenses',
