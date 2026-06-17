@@ -837,6 +837,8 @@ static void usage(bool err)
 "  -e, --entry <plugin>       Teleport directly to a plugin's scene at startup.\n"
 "  -t, --theme <name>         Set theme (overrides config's theme setting).\n"
 "      --pick                 dmenu-compatible picker mode: read stdin lines, print selection to stdout.\n"
+"      --input                Input mode: show prompt, print typed text to stdout on Enter.\n"
+"      --sensitive            Mask input with asterisks (for use with --input).\n"
 "      --font <name>           Font name.\n"
 "      --font-size <px>        Font size.\n"
 "      --prompt-text <string>  Prompt text.\n"
@@ -865,6 +867,8 @@ const struct option long_options[] = {
 	{"entry", required_argument, NULL, 'e'},
 	{"theme", required_argument, NULL, 't'},
 	{"pick", no_argument, NULL, 'P'},
+	{"input", no_argument, NULL, 'I'},
+	{"sensitive", no_argument, NULL, 'S'},
 	{"anchor", required_argument, NULL, 0},
 	{"background-color", required_argument, NULL, 0},
 	{"corner-radius", required_argument, NULL, 0},
@@ -884,7 +888,7 @@ const struct option long_options[] = {
 	{"padding", required_argument, NULL, 0},
 	{NULL, 0, NULL, 0}
 };
-const char *short_options = ":hc:f:p:e:t:P";
+const char *short_options = ":hc:f:p:e:t:PIS";
 
 static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
 {
@@ -918,6 +922,10 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 			cli_theme = optarg;
 		} else if (opt == 'P') {
 			tofi->picker_mode = true;
+		} else if (opt == 'I') {
+			tofi->input_mode = true;
+		} else if (opt == 'S') {
+			tofi->view_state.sensitive = true;
 		} else if (opt == ':') {
 			log_error("Option %s requires an argument.\n", argv[optind - 1]);
 			usage(true);
@@ -937,8 +945,12 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 		config_load(tofi, NULL);
 	}
 
-	if (tofi->picker_mode && (*entry_plugin || *plugin_list)) {
-		log_error("--pick cannot be combined with -e or -p.\n");
+	if ((tofi->picker_mode || tofi->input_mode) && (*entry_plugin || *plugin_list)) {
+		log_error("--pick/--input cannot be combined with -e or -p.\n");
+		exit(EXIT_FAILURE);
+	}
+	if (tofi->picker_mode && tofi->input_mode) {
+		log_error("--pick and --input cannot be combined.\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1592,6 +1604,10 @@ static bool do_submit(struct tofi *tofi)
 	struct nav_level *level = tofi->nav_current;
 
 	if (level && level->mode == SELECTION_INPUT) {
+		if (tofi->input_mode) {
+			snprintf(tofi->pipe_output, N_ELEM(tofi->pipe_output), "%s", level->input_buffer);
+			return true;
+		}
 		struct value_dict *dict = dict_copy(level->dict);
 		dict_set(&dict, level->as, level->input_buffer);
 
@@ -1665,7 +1681,7 @@ static bool do_submit(struct tofi *tofi)
 		switch (action->selection_type) {
 		case SELECTION_SELF:
 			if (tofi->picker_mode) {
-				snprintf(tofi->picker_selection, N_ELEM(tofi->picker_selection), "%s", nav_res->value);
+				snprintf(tofi->pipe_output, N_ELEM(tofi->pipe_output), "%s", nav_res->value);
 				dict_destroy(dict);
 				return true;
 			}
@@ -2189,6 +2205,17 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (tofi.input_mode) {
+		struct nav_level *level = nav_level_create(SELECTION_INPUT, dict_create());
+		level->sensitive = tofi.view_state.sensitive;
+		if (tofi.view_state.prompt[0]) {
+			snprintf(level->display_prompt, NAV_PROMPT_MAX, "%s", tofi.view_state.prompt);
+		}
+		nav_push_level(&tofi, level);
+		update_view_state_from_level(&tofi, level);
+		tofi.view_state.sensitive = level->sensitive;
+	}
+
 	/*
 	 * Next, we create the Wayland surface, which takes on the
 	 * layer shell role.
@@ -2594,9 +2621,9 @@ int main(int argc, char *argv[])
 	wl_display_disconnect(tofi.wl_display);
 
 	log_debug("Finished, exiting.\n");
-	if (tofi.picker_mode) {
-		if (tofi.picker_selection[0]) {
-			printf("%s\n", tofi.picker_selection);
+	if (tofi.picker_mode || tofi.input_mode) {
+		if (tofi.pipe_output[0]) {
+			printf("%s\n", tofi.pipe_output);
 			fflush(stdout);
 			return EXIT_SUCCESS;
 		}

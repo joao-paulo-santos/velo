@@ -13,6 +13,8 @@ _hypr-tofi()
 		--entry
 		--theme
 		--pick
+		--input
+		--sensitive
 		--anchor
 		--background-color
 		--corner-radius

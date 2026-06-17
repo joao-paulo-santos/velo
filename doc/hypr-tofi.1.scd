@@ -48,11 +48,22 @@ to teleport directly to it (e.g. *calc:*, *tmux:*, *url:*).
 *--pick*
 	dmenu-compatible picker mode. Read newline-separated items from
 	stdin, let the user fuzzy-search and select one, print the selection
-	to stdout and exit. Cannot be combined with *-e* or *-p*.
+	to stdout and exit. Cannot be combined with *-e*, *-p*, or *--input*.
 
 	Example: *echo -e "a\\nb\\nc" | hypr-tofi --pick*
 
 	Exit codes: 0 on selection, 1 on no selection or empty stdin.
+
+*--input*
+	Input mode. Show a text entry prompt, print the typed text to stdout
+	on Enter. Cannot be combined with *-e*, *-p*, or *--pick*.
+
+	Example: *hypr-tofi --input --prompt-text "Password: "* > /tmp/pw*
+
+	Exit codes: 0 on submit, 1 on Escape/close.
+
+*--sensitive*
+	Mask input with asterisks. For use with *--input*.
 
 All config file options (see _hypr-tofi_(5)) can also be passed as
 long flags. Example: *--font "Monospace"* *--font-size 14*
