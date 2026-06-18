@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/input-event-codes.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "input.h"
@@ -57,32 +58,68 @@ void input_select_result(struct tofi *tofi, uint32_t index)
 	}
 }
 
+struct scored_result {
+	int32_t score;
+	struct nav_result *result;
+};
+
+static int cmp_scored_result(const void *a, const void *b)
+{
+	const struct scored_result *sa = a;
+	const struct scored_result *sb = b;
+	return sb->score - sa->score;
+}
+
 static void nav_filter_results(struct tofi *tofi, const char *filter)
 {
 	struct view_state *state = &tofi->view_state;
 	struct nav_level *level = tofi->nav_current;
-	
+
 	if (!level) {
 		return;
 	}
-	
+
 	nav_results_destroy(&level->results);
 	string_ref_vec_destroy(&state->results);
 	state->results = string_ref_vec_create();
 	wl_list_init(&level->results);
-	
+
+	bool has_filter = filter && filter[0];
+
+	size_t total = wl_list_length(&level->backup_results);
+	if (total == 0) {
+		return;
+	}
+
+	struct scored_result *entries = xmalloc(total * sizeof(*entries));
+	size_t count = 0;
+
 	struct nav_result *res;
 	wl_list_for_each(res, &level->backup_results, link) {
-		int32_t score = match_words(MATCHING_ALGORITHM_FUZZY, filter, res->label);
-		if (!filter || !filter[0] || score != INT32_MIN) {
-			struct nav_result *copy = nav_result_create();
-			strncpy(copy->label, res->label, NAV_LABEL_MAX - 1);
-			strncpy(copy->value, res->value, NAV_VALUE_MAX - 1);
-			copy->action = res->action;
-			wl_list_insert(&level->results, &copy->link);
-			string_ref_vec_add(&state->results, copy->label);
+		int32_t score = has_filter
+			? match_words(MATCHING_ALGORITHM_FUZZY, filter, res->label)
+			: 0;
+		if (!has_filter || score != INT32_MIN) {
+			entries[count].score = score;
+			entries[count].result = res;
+			count++;
 		}
 	}
+
+	if (has_filter && count > 1) {
+		qsort(entries, count, sizeof(*entries), cmp_scored_result);
+	}
+
+	for (size_t i = 0; i < count; i++) {
+		struct nav_result *copy = nav_result_create();
+		strncpy(copy->label, entries[i].result->label, NAV_LABEL_MAX - 1);
+		strncpy(copy->value, entries[i].result->value, NAV_VALUE_MAX - 1);
+		copy->action = entries[i].result->action;
+		wl_list_insert(level->results.prev, &copy->link);
+		string_ref_vec_add(&state->results, copy->label);
+	}
+
+	free(entries);
 }
 
 static void restore_input_from_utf8(struct view_state *state, const char *utf8, size_t length)

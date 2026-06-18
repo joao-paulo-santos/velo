@@ -129,7 +129,7 @@ void nav_results_copy(struct wl_list *dest, struct wl_list *src)
 		strncpy(copy->label, res->label, NAV_LABEL_MAX - 1);
 		strncpy(copy->value, res->value, NAV_VALUE_MAX - 1);
 		copy->action = res->action;
-		wl_list_insert(dest, &copy->link);
+		wl_list_insert(dest->prev, &copy->link);
 	}
 }
 
