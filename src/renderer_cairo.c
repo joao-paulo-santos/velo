@@ -359,16 +359,18 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 
 	uint32_t num_results = state->results.count;
 
+	/* Always reserve separator space so result_start_y is stable
+	 * regardless of whether results exist (prevents autosize jitter). */
+	cairo_translate(cr, 0, 2);
 	if (num_results > 0) {
-		cairo_translate(cr, 0, 2);
 		struct color sep_color = theme->accent_color;
 		cairo_set_source_rgba(cr, sep_color.r, sep_color.g, sep_color.b, sep_color.a);
 		cairo_set_line_width(cr, 1);
 		cairo_move_to(cr, 0, 0);
 		cairo_line_to(cr, priv->clip_width, 0);
 		cairo_stroke(cr);
-		cairo_translate(cr, 0, 4);
 	}
+	cairo_translate(cr, 0, 4);
 
 	cairo_matrix_t result_mat;
 	cairo_get_matrix(cr, &result_mat);
