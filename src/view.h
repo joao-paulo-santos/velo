@@ -29,6 +29,7 @@ struct view_theme {
 	struct color background_color;
 	struct color foreground_color;
 	struct color accent_color;
+	float background_opacity;
 
 	char font_name[VIEW_MAX_FONT_NAME];
 	uint32_t font_size;

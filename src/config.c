@@ -81,6 +81,7 @@ static uint32_t fixup_percentage(uint32_t value, uint32_t base, bool is_percent)
 static uint32_t parse_anchor(const char *filename, size_t lineno, const char *str, bool *err);
 static struct color parse_color(const char *filename, size_t lineno, const char *str, bool *err);
 static uint32_t parse_uint32(const char *filename, size_t lineno, const char *str, bool *err);
+static float parse_float(const char *filename, size_t lineno, const char *str, bool *err);
 static struct uint32_percent parse_uint32_percent(const char *filename, size_t lineno, const char *str, bool *err);
 
 /*
@@ -310,6 +311,13 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 		if (!err) {
 			tofi->view_theme.background_color = val;
 		}
+	} else if (strcasecmp(option, "background-opacity") == 0) {
+		float val = parse_float(filename, lineno, value, &err);
+		if (!err) {
+			if (val < 0.1f) val = 0.1f;
+			if (val > 1.0f) val = 1.0f;
+			tofi->view_theme.background_opacity = val;
+		}
 	} else if (strcasecmp(option, "corner-radius") == 0) {
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
@@ -524,6 +532,9 @@ void config_fixup_values(struct tofi *tofi)
 	if (tofi->window.height_is_percent || !tofi->use_scale) {
 		tofi->window.height = scale_apply_inverse(tofi->window.height, scale);
 	}
+
+	/* background_opacity overrides any alpha from the hex color. */
+	tofi->view_theme.background_color.a = tofi->view_theme.background_opacity;
 }
 
 char *get_config_path()
@@ -605,6 +616,20 @@ uint32_t parse_uint32(const char *filename, size_t lineno, const char *str, bool
 		}
 	} else if (errno || ret < 0 || ret > UINT32_MAX) {
 		PARSE_ERROR(filename, lineno, "Unsigned int value \"%s\" out of range.\n", str);
+		if (err) {
+			*err = true;
+		}
+	}
+	return ret;
+}
+
+float parse_float(const char *filename, size_t lineno, const char *str, bool *err)
+{
+	errno = 0;
+	char *endptr;
+	float ret = strtof(str, &endptr);
+	if (endptr == str || *endptr != '\0') {
+		PARSE_ERROR(filename, lineno, "Failed to parse \"%s\" as float.\n", str);
 		if (err) {
 			*err = true;
 		}

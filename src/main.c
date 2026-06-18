@@ -1883,6 +1883,7 @@ int main(int argc, char *argv[])
 			.padding_right = 8,
 			.border_width = 12,
 			.background_color = {0.106f, 0.114f, 0.118f, 1.0f},
+			.background_opacity = 1.0f,
 			.foreground_color = {1.0f, 1.0f, 1.0f, 1.0f},
 			.accent_color = {0.976f, 0.149f, 0.447f, 1.0f},
 		},
