@@ -45,6 +45,9 @@ to teleport directly to it (e.g. *calc:*, *tmux:*, *url:*).
 	Set theme. Overrides the *theme* config option. Themes are loaded
 	from _$XDG_CONFIG_HOME/hypr-tofi/themes/<name>.toml_
 
+*-L, --list-themes*
+	List available theme names and exit.
+
 *--pick*
 	dmenu-compatible picker mode. Read newline-separated items from
 	stdin, let the user fuzzy-search and select one, print the selection
@@ -65,8 +68,18 @@ to teleport directly to it (e.g. *calc:*, *tmux:*, *url:*).
 *--sensitive*
 	Mask input with asterisks. For use with *--input*.
 
+*--background-opacity* <float>
+	Background transparency. 0.1-1.0. Overrides any alpha in the
+	background color. Default: 1.0.
+
 All config file options (see _hypr-tofi_(5)) can also be passed as
 long flags. Example: *--font "Monospace"* *--font-size 14*
+
+# ENVIRONMENT
+
+*HYPR_TOFI_DEBUG=1*
+	Draw debug overlay: green rectangle at clip boundary, red rectangle
+	at border boundary. Useful for tuning padding and autosize.
 
 # KEY BINDINGS
 

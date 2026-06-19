@@ -62,3 +62,10 @@ tags
 # Project specific files
 build/
 .cache
+
+# Local-only docs (kept for local reference, not committed)
+ARCHITECTURE.md
+PLUGIN_SYSTEM.md
+
+# Feedback plugin history
+config/history/

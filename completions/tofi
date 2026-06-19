@@ -12,11 +12,13 @@ _hypr-tofi()
 		--plugins
 		--entry
 		--theme
+		--list-themes
 		--pick
 		--input
 		--sensitive
 		--anchor
 		--background-color
+		--background-opacity
 		--corner-radius
 		--output
 		--font
@@ -32,6 +34,10 @@ _hypr-tofi()
 		--margin-left
 		--margin-right
 		--padding
+		--padding-top
+		--padding-bottom
+		--padding-left
+		--padding-right
 	)
 
 	case "${prev}" in
@@ -46,7 +52,7 @@ _hypr-tofi()
 			;;
 	esac
 	case "${cur}" in
-		-[chfpet])
+		-[chfpetL])
 			COMPREPLY=($cur)
 			;;
 		*)

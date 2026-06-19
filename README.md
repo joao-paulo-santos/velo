@@ -12,6 +12,10 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 - **Dictionary flow** — values accumulate through the nav stack via `{key}` template substitution
 - **Plugin chaining** — `next` forwards to another plugin, `return` passes values back to parent
 - **Teleport** — type `calc:`, `tmux:`, `url:` to jump directly to any plugin
+- **Autosize** — dynamic window height that grows/shrinks to fit results (like macOS Spotlight)
+- **Theming** — `theme = "name"` loads visual presets, `--list-themes` to list, theme picker plugin
+- **Pipe modes** — `--pick` (dmenu replacement), `--input` (zenity --entry), `--sensitive` (passwords)
+- **Fuzzy search** — results sorted by match quality (contiguous > spread out)
 - **Dependency checking** — plugins auto-hide if required binaries are missing
 - **Fast** — inherits tofi's performance (~2-6ms startup)
 
@@ -26,6 +30,7 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 | **tmux** | list | Session manager: attach, close, new, freeze, unfreeze |
 | **hyprland** | list | Window focus, workspace switching |
 | **wifi** | list | Connect, reconnect, forget networks |
+| **theme** | list | Switch themes for hypr-tofi, kitty, waybar, hyprland |
 | **enter-password** | input | Reusable password prompt (chains with `next`) |
 
 ## Install
@@ -57,6 +62,18 @@ hypr-tofi -p tmux-freeze,tmux-unfreeze
 
 # Filter which global plugins appear on root menu
 hypr-tofi -f all,-drun
+
+# dmenu replacement
+echo -e "option1\noption2\noption3" | hypr-tofi --pick
+
+# Text input (zenity --entry replacement)
+hypr-tofi --input --prompt-text "Name: "
+
+# Password input (zenity --password replacement)
+hypr-tofi --input --sensitive --prompt-text "Password: "
+
+# List available themes
+hypr-tofi --list-themes
 ```
 
 ### With Hyprland
@@ -125,13 +142,16 @@ Config file: `~/.config/hypr-tofi/config`
 font = "Sans"
 font-size = 24
 text-color = "#FFFFFF"
-background-color = "#000000"
-accent-color = "#FFFF00"
+background-color = "#1a1b26"
+background-opacity = 0.9
+accent-color = "#7aa2f7"
 width = 50%
 border-width = 2
 corner-radius = 8
-padding = 32
+padding = 16
 prompt-text = "run: "
+autosize = true
+theme = "tokyo-night"
 plugins = all
 ```
 
