@@ -199,7 +199,7 @@ static void draw_background_and_clip(struct cairo_priv *priv, cairo_t *cr,
 	priv->clip_width = w;
 	priv->clip_height = h;
 
-	if (getenv("HYPR_TOFI_DEBUG")) {
+	if (getenv("VELO_DEBUG")) {
 		cairo_save(cr);
 		cairo_reset_clip(cr);
 		cairo_identity_matrix(cr);

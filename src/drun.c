@@ -17,7 +17,7 @@
 
 static const char *default_data_dir = ".local/share/";
 static const char *default_cache_dir = ".cache/";
-static const char *cache_basename = "tofi-drun";
+static const char *cache_basename = "velo-drun";
 
 [[nodiscard("memory leaked")]]
 static char *get_cache_path() {
@@ -313,7 +313,7 @@ void drun_launch(const char *filename)
 				"If this is a terminal issue, you can use `--drun-launch=false`,\n"
 				"         and pass your preferred terminal command to `--terminal`.\n"
 				"         For more information, see https://gitlab.gnome.org/GNOME/glib/-/issues/338\n"
-				"         and https://github.com/philj56/tofi/issues/46.\n");
+				"         and https://github.com/philj56/velo/issues/46.\n");
 	}
 
 	g_clear_error(&err);

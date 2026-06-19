@@ -1,14 +1,14 @@
-hypr-tofi(5)
+velo(5)
 
 # NAME
 
-hypr-tofi - configuration file
+velo - configuration file
 
 # DESCRIPTION
 
-Config file location: _$XDG_CONFIG_HOME/hypr-tofi/config_
+Config file location: _$XDG_CONFIG_HOME/velo/config_
 
-Options can also be passed as CLI flags (see _hypr-tofi_(1)).
+Options can also be passed as CLI flags (see _velo_(1)).
 Values are: strings, integers, hex colors (#RRGGBB or #RRGGBBAA),
 or percentages (e.g. *50%*).
 
@@ -95,12 +95,12 @@ or percentages (e.g. *50%*).
 # THEMES
 
 *theme* <string>
-	Theme name. Loads _$XDG_CONFIG_HOME/hypr-tofi/themes/<name>.toml_
+	Theme name. Loads _$XDG_CONFIG_HOME/velo/themes/<name>.toml_
 	after the main config file. Theme files use the same options as the
 	config (visual only: colors, fonts, borders, padding, corners).
 	The *-t* CLI flag overrides this.
 
-	Available themes can be listed with *hypr-tofi --list-themes*.
+	Available themes can be listed with *velo --list-themes*.
 
 # PLUGINS
 
@@ -130,4 +130,4 @@ plugins = all
 
 # SEE ALSO
 
-_hypr-tofi_(1)
+_velo_(1)

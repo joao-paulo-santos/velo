@@ -1,5 +1,5 @@
 project(
-  'hypr-tofi',
+  'velo',
   'c',
   version: '0.0.1',
   license: 'MIT',
@@ -24,7 +24,7 @@ endif
 config_location = join_paths(
   get_option('sysconfdir'),
   'xdg',
-  'hypr-tofi'
+  'velo'
 )
 
 install_data(
@@ -35,7 +35,7 @@ install_data(
 themes_location = join_paths(
   get_option('sysconfdir'),
   'xdg',
-  'hypr-tofi',
+  'velo',
   'themes'
 )
 
@@ -53,7 +53,7 @@ install_data(
 license_dir = join_paths(
   get_option('datadir'),
   'licenses',
-  'hypr-tofi'
+  'velo'
 )
 
 install_data(
@@ -69,21 +69,21 @@ completion_location = join_paths(
 )
 
 install_data(
-  'completions/tofi',
-  rename: 'hypr-tofi',
+  'completions/velo',
+  rename: 'velo',
   install_dir: completion_location
 )
 
 install_symlink(
-  'tofi',
+  'velo',
   install_dir: completion_location,
-  pointing_to: 'hypr-tofi',
+  pointing_to: 'velo',
 )
 
 install_symlink(
-  'tofi',
+  'velo',
   install_dir: get_option('bindir'),
-  pointing_to: 'hypr-tofi',
+  pointing_to: 'velo',
 )
 
 add_project_arguments(
@@ -188,7 +188,7 @@ foreach proto : wl_proto_xml
 endforeach
 
 executable(
-  'hypr-tofi',
+  'velo',
   files('src/main.c'), common_sources, wl_proto_src, wl_proto_headers,
   dependencies: [librt, libm, libfts, freetype, harfbuzz, cairo, pangocairo, wayland_client, xkbcommon, glib, gio_unix],
   install: true
@@ -199,10 +199,10 @@ if scdoc.found()
   sh = find_program('sh')
   mandir = get_option('mandir')
 
-  output = 'hypr-tofi.1'
+  output = 'velo.1'
   custom_target(
     output,
-    input: 'doc/hypr-tofi.1.scd',
+    input: 'doc/velo.1.scd',
     output: output,
     command: [
       sh, '-c', '@0@ < @INPUT@ > @1@'.format(scdoc.full_path(), output)
@@ -214,13 +214,13 @@ if scdoc.found()
   install_symlink(
     'tofi.1',
     install_dir: '@0@/man1'.format(mandir),
-    pointing_to: 'hypr-tofi.1'
+    pointing_to: 'velo.1'
   )
 
-  output = 'hypr-tofi.5'
+  output = 'velo.5'
   custom_target(
     output,
-    input: 'doc/hypr-tofi.5.scd',
+    input: 'doc/velo.5.scd',
     output: output,
     command: [
       sh, '-c', '@0@ < @INPUT@ > @1@'.format(scdoc.full_path(), output)

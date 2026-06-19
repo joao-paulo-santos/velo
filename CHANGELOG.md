@@ -17,7 +17,7 @@ Initial release of the plugin-extensible Wayland launcher.
 - Theming system: `theme = "name"` loads visual presets, `--list-themes` to list
 - Background opacity control (`background-opacity`, 0.1-1.0)
 - Per-side padding overrides (`padding-top`, `padding-bottom`, etc.)
-- HYPR_TOFI_DEBUG env var for clip/border visualization
+- VELO_DEBUG env var for clip/border visualization
 
 ### Pipe Modes
 - `--pick`: dmenu replacement (stdin list, stdout selection)
@@ -32,7 +32,7 @@ Initial release of the plugin-extensible Wayland launcher.
 - **tmux** — session manager (freeze/unfreeze/cold storage via tmux-fridge)
 - **hyprland** — window focus and workspace switching
 - **wifi** — connect/reconnect/forget networks
-- **theme** — switch themes for hypr-tofi, kitty, waybar, hyprland
+- **theme** — switch themes for velo, kitty, waybar, hyprland
 - **enter-password** — reusable password prompt (chains with `next`)
 
 ### CLI

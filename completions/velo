@@ -1,6 +1,6 @@
 # vi: ft=bash
 
-_hypr-tofi()
+_velo()
 {
 	local cur prev words cword
 	_init_completion || return
@@ -61,4 +61,4 @@ _hypr-tofi()
 			;;
 	esac
 }
-complete -F _hypr-tofi hypr-tofi
+complete -F _velo velo

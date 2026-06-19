@@ -11,50 +11,50 @@
 #include "nelem.h"
 #include "plugin.h"
 #include "string_vec.h"
-#include "tofi.h"
+#include "velo.h"
 #include "unicode.h"
 #include "xmalloc.h"
 #include "view.h"
 
-static void add_character(struct tofi *tofi, xkb_keycode_t keycode);
-static void delete_character(struct tofi *tofi);
-static void delete_word(struct tofi *tofi);
-static void clear_input(struct tofi *tofi);
-static void paste(struct tofi *tofi);
-static void select_previous_result(struct tofi *tofi);
-static void select_next_result(struct tofi *tofi);
-static void select_previous_page(struct tofi *tofi);
-static void select_next_page(struct tofi *tofi);
-static void next_cursor_or_result(struct tofi *tofi);
-static void previous_cursor_or_result(struct tofi *tofi);
-static void reset_selection(struct tofi *tofi);
-static void nav_filter_results(struct tofi *tofi, const char *filter);
-static void nav_pop_and_restore(struct tofi *tofi);
-static bool try_teleport(struct tofi *tofi);
+static void add_character(struct velo *velo, xkb_keycode_t keycode);
+static void delete_character(struct velo *velo);
+static void delete_word(struct velo *velo);
+static void clear_input(struct velo *velo);
+static void paste(struct velo *velo);
+static void select_previous_result(struct velo *velo);
+static void select_next_result(struct velo *velo);
+static void select_previous_page(struct velo *velo);
+static void select_next_page(struct velo *velo);
+static void next_cursor_or_result(struct velo *velo);
+static void previous_cursor_or_result(struct velo *velo);
+static void reset_selection(struct velo *velo);
+static void nav_filter_results(struct velo *velo, const char *filter);
+static void nav_pop_and_restore(struct velo *velo);
+static bool try_teleport(struct velo *velo);
 
-void input_scroll_up(struct tofi *tofi)
+void input_scroll_up(struct velo *velo)
 {
-	select_previous_result(tofi);
-	tofi->window.surface.redraw = true;
+	select_previous_result(velo);
+	velo->window.surface.redraw = true;
 }
 
-void input_scroll_down(struct tofi *tofi)
+void input_scroll_down(struct velo *velo)
 {
-	select_next_result(tofi);
-	tofi->window.surface.redraw = true;
+	select_next_result(velo);
+	velo->window.surface.redraw = true;
 }
 
-void input_select_result(struct tofi *tofi, uint32_t index)
+void input_select_result(struct velo *velo, uint32_t index)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 	if (index < state->num_results_drawn) {
 		state->selection = index;
-		if (tofi->nav_current) {
-			tofi->nav_current->selection = index;
+		if (velo->nav_current) {
+			velo->nav_current->selection = index;
 		} else {
-			tofi->base_selection = index;
+			velo->base_selection = index;
 		}
-		tofi->window.surface.redraw = true;
+		velo->window.surface.redraw = true;
 	}
 }
 
@@ -70,10 +70,10 @@ static int cmp_scored_result(const void *a, const void *b)
 	return sb->score - sa->score;
 }
 
-static void nav_filter_results(struct tofi *tofi, const char *filter)
+static void nav_filter_results(struct velo *velo, const char *filter)
 {
-	struct view_state *state = &tofi->view_state;
-	struct nav_level *level = tofi->nav_current;
+	struct view_state *state = &velo->view_state;
+	struct nav_level *level = velo->nav_current;
 
 	if (!level) {
 		return;
@@ -149,16 +149,16 @@ static void restore_input_from_utf8(struct view_state *state, const char *utf8, 
 	state->cursor_position = j;
 }
 
-static void nav_pop_and_restore(struct tofi *tofi)
+static void nav_pop_and_restore(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 	
-	if (!tofi->nav_current) {
-		tofi->closed = true;
+	if (!velo->nav_current) {
+		velo->closed = true;
 		return;
 	}
 	
-	struct nav_level *current = tofi->nav_current;
+	struct nav_level *current = velo->nav_current;
 	
 	if (current->mode == SELECTION_FEEDBACK) {
 		feedback_history_save(current);
@@ -167,46 +167,46 @@ static void nav_pop_and_restore(struct tofi *tofi)
 	wl_list_remove(&current->link);
 	nav_level_destroy(current);
 	
-	if (wl_list_empty(&tofi->nav_stack)) {
-		tofi->nav_current = NULL;
-		if (tofi->entry_only) {
-			tofi->closed = true;
+	if (wl_list_empty(&velo->nav_stack)) {
+		velo->nav_current = NULL;
+		if (velo->entry_only) {
+			velo->closed = true;
 			return;
 		}
-		snprintf(state->prompt, VIEW_MAX_PROMPT, "%s", tofi->base_prompt);
+		snprintf(state->prompt, VIEW_MAX_PROMPT, "%s", velo->base_prompt);
 		string_ref_vec_destroy(&state->results);
-		if (tofi->base_input_buffer[0] == '\0') {
+		if (velo->base_input_buffer[0] == '\0') {
 			state->results = string_ref_vec_copy(&state->commands);
 		} else {
-			state->results = string_ref_vec_filter(&state->commands, tofi->base_input_buffer, MATCHING_ALGORITHM_FUZZY);
+			state->results = string_ref_vec_filter(&state->commands, velo->base_input_buffer, MATCHING_ALGORITHM_FUZZY);
 		}
-		state->selection = tofi->base_selection;
-		state->first_result = tofi->base_first_result;
+		state->selection = velo->base_selection;
+		state->first_result = velo->base_first_result;
 		state->sensitive = false;
-		restore_input_from_utf8(state, tofi->base_input_buffer, tofi->base_input_length);
+		restore_input_from_utf8(state, velo->base_input_buffer, velo->base_input_length);
 	} else {
-		tofi->nav_current = wl_container_of(tofi->nav_stack.next, tofi->nav_current, link);
+		velo->nav_current = wl_container_of(velo->nav_stack.next, velo->nav_current, link);
 		
 		string_ref_vec_destroy(&state->results);
 		state->results = string_ref_vec_create();
 		struct nav_result *res;
-		wl_list_for_each(res, &tofi->nav_current->results, link) {
+		wl_list_for_each(res, &velo->nav_current->results, link) {
 			string_ref_vec_add(&state->results, res->label);
 		}
 		
-		state->selection = tofi->nav_current->selection;
-		state->first_result = tofi->nav_current->first_result;
-		state->sensitive = tofi->nav_current->sensitive;
-		restore_input_from_utf8(state, tofi->nav_current->input_buffer, tofi->nav_current->input_length);
+		state->selection = velo->nav_current->selection;
+		state->first_result = velo->nav_current->first_result;
+		state->sensitive = velo->nav_current->sensitive;
+		restore_input_from_utf8(state, velo->nav_current->input_buffer, velo->nav_current->input_length);
 		
-		if (tofi->nav_current->display_prompt[0]) {
-			snprintf(state->prompt, VIEW_MAX_PROMPT, "%s", tofi->nav_current->display_prompt);
+		if (velo->nav_current->display_prompt[0]) {
+			snprintf(state->prompt, VIEW_MAX_PROMPT, "%s", velo->nav_current->display_prompt);
 		} else {
-			snprintf(state->prompt, VIEW_MAX_PROMPT, "%s", tofi->base_prompt);
+			snprintf(state->prompt, VIEW_MAX_PROMPT, "%s", velo->base_prompt);
 		}
 	}
 	
-	tofi->window.surface.redraw = true;
+	velo->window.surface.redraw = true;
 }
 
 static void update_level_input(struct nav_level *level, struct view_state *state)
@@ -219,104 +219,104 @@ static void update_level_input(struct nav_level *level, struct view_state *state
 	level->input_length = state->input_utf8_length;
 }
 
-void input_handle_keypress(struct tofi *tofi, xkb_keycode_t keycode)
+void input_handle_keypress(struct velo *velo, xkb_keycode_t keycode)
 {
-	if (tofi->xkb_state == NULL) {
+	if (velo->xkb_state == NULL) {
 		return;
 	}
 
 	bool ctrl = xkb_state_mod_name_is_active(
-			tofi->xkb_state,
+			velo->xkb_state,
 			XKB_MOD_NAME_CTRL,
 			XKB_STATE_MODS_EFFECTIVE);
 	bool alt = xkb_state_mod_name_is_active(
-			tofi->xkb_state,
+			velo->xkb_state,
 			XKB_MOD_NAME_ALT,
 			XKB_STATE_MODS_EFFECTIVE);
 	bool shift = xkb_state_mod_name_is_active(
-			tofi->xkb_state,
+			velo->xkb_state,
 			XKB_MOD_NAME_SHIFT,
 			XKB_STATE_MODS_EFFECTIVE);
 
-	uint32_t ch = xkb_state_key_get_utf32(tofi->xkb_state, keycode);
+	uint32_t ch = xkb_state_key_get_utf32(velo->xkb_state, keycode);
 
 	uint32_t key = keycode - 8;
 
 	if (utf32_isprint(ch) && !ctrl && !alt) {
-		add_character(tofi, keycode);
+		add_character(velo, keycode);
 	} else if ((key == KEY_BACKSPACE || key == KEY_W) && ctrl) {
-		delete_word(tofi);
+		delete_word(velo);
 	} else if (key == KEY_BACKSPACE
 			|| (key == KEY_H && ctrl)) {
-		delete_character(tofi);
+		delete_character(velo);
 	} else if (key == KEY_U && ctrl) {
-		clear_input(tofi);
+		clear_input(velo);
 	} else if (key == KEY_V && ctrl) {
-		paste(tofi);
+		paste(velo);
 	} else if (key == KEY_LEFT) {
-		previous_cursor_or_result(tofi);
+		previous_cursor_or_result(velo);
 	} else if (key == KEY_RIGHT) {
-		next_cursor_or_result(tofi);
+		next_cursor_or_result(velo);
 	} else if (key == KEY_UP
 			|| key == KEY_LEFT
 			|| (key == KEY_TAB && shift)
 			|| (key == KEY_H && alt)
 			|| ((key == KEY_K || key == KEY_P || key == KEY_B) && (ctrl || alt))) {
-		select_previous_result(tofi);
+		select_previous_result(velo);
 	} else if (key == KEY_DOWN
 			|| key == KEY_RIGHT
 			|| key == KEY_TAB
 			|| (key == KEY_L && alt)
 			|| ((key == KEY_J || key == KEY_N || key == KEY_F) && (ctrl || alt))) {
-		select_next_result(tofi);
+		select_next_result(velo);
 	} else if (key == KEY_HOME) {
-		reset_selection(tofi);
+		reset_selection(velo);
 	} else if (key == KEY_PAGEUP) {
-		select_previous_page(tofi);
+		select_previous_page(velo);
 	} else if (key == KEY_PAGEDOWN) {
-		select_next_page(tofi);
+		select_next_page(velo);
 	} else if (key == KEY_ESC) {
-		if (tofi->nav_current && (tofi->nav_current->mode == SELECTION_INPUT || tofi->nav_current->mode == SELECTION_FEEDBACK)) {
-			nav_pop_and_restore(tofi);
-		} else if (tofi->view_state.input_utf32_length > 0) {
-			clear_input(tofi);
-			tofi->window.surface.redraw = true;
-		} else if (tofi->nav_current) {
-			nav_pop_and_restore(tofi);
+		if (velo->nav_current && (velo->nav_current->mode == SELECTION_INPUT || velo->nav_current->mode == SELECTION_FEEDBACK)) {
+			nav_pop_and_restore(velo);
+		} else if (velo->view_state.input_utf32_length > 0) {
+			clear_input(velo);
+			velo->window.surface.redraw = true;
+		} else if (velo->nav_current) {
+			nav_pop_and_restore(velo);
 		} else {
-			tofi->closed = true;
+			velo->closed = true;
 		}
 		return;
 	} else if ((key == KEY_C || key == KEY_LEFTBRACE || key == KEY_G) && ctrl) {
-		tofi->closed = true;
+		velo->closed = true;
 		return;
 	} else if (key == KEY_ENTER
 			|| key == KEY_KPENTER
 			|| (key == KEY_M && ctrl)) {
-		tofi->submit = true;
+		velo->submit = true;
 		return;
 	}
 
-	tofi->window.surface.redraw = true;
+	velo->window.surface.redraw = true;
 }
 
-void reset_selection(struct tofi *tofi)
+void reset_selection(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 	state->selection = 0;
 	state->first_result = 0;
-	if (tofi->nav_current) {
-		tofi->nav_current->selection = 0;
-		tofi->nav_current->first_result = 0;
+	if (velo->nav_current) {
+		velo->nav_current->selection = 0;
+		velo->nav_current->first_result = 0;
 	} else {
-		tofi->base_selection = 0;
-		tofi->base_first_result = 0;
+		velo->base_selection = 0;
+		velo->base_first_result = 0;
 	}
 }
 
-static bool try_teleport(struct tofi *tofi)
+static bool try_teleport(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 	const char *input = state->input_utf8;
 	size_t input_len = state->input_utf8_length;
 	
@@ -342,7 +342,7 @@ static bool try_teleport(struct tofi *tofi)
 		return false;
 	}
 	
-	struct nav_level *level = tofi->nav_current;
+	struct nav_level *level = velo->nav_current;
 	
 	if (level) {
 		strncpy(level->input_buffer, state->input_utf8, NAV_INPUT_MAX - 1);
@@ -353,35 +353,35 @@ static bool try_teleport(struct tofi *tofi)
 		memmove(level->input_buffer, level->input_buffer + strip_len, level->input_length - strip_len + 1);
 		level->input_length -= strip_len;
 		
-		nav_filter_results(tofi, level->input_buffer);
-		reset_selection(tofi);
+		nav_filter_results(velo, level->input_buffer);
+		reset_selection(velo);
 	} else {
-		strncpy(tofi->base_input_buffer, state->input_utf8, 4 * VIEW_MAX_INPUT - 1);
-		tofi->base_input_buffer[4 * VIEW_MAX_INPUT - 1] = '\0';
-		tofi->base_input_length = state->input_utf8_length;
+		strncpy(velo->base_input_buffer, state->input_utf8, 4 * VIEW_MAX_INPUT - 1);
+		velo->base_input_buffer[4 * VIEW_MAX_INPUT - 1] = '\0';
+		velo->base_input_length = state->input_utf8_length;
 		
 		size_t strip_len = prefix_len + 1;
-		memmove(tofi->base_input_buffer, tofi->base_input_buffer + strip_len, tofi->base_input_length - strip_len + 1);
-		tofi->base_input_length -= strip_len;
+		memmove(velo->base_input_buffer, velo->base_input_buffer + strip_len, velo->base_input_length - strip_len + 1);
+		velo->base_input_length -= strip_len;
 		
 		string_ref_vec_destroy(&state->results);
-		if (tofi->base_input_buffer[0] == '\0') {
+		if (velo->base_input_buffer[0] == '\0') {
 			state->results = string_ref_vec_copy(&state->commands);
 		} else {
-			state->results = string_ref_vec_filter(&state->commands, tofi->base_input_buffer, MATCHING_ALGORITHM_FUZZY);
+			state->results = string_ref_vec_filter(&state->commands, velo->base_input_buffer, MATCHING_ALGORITHM_FUZZY);
 		}
-		reset_selection(tofi);
+		reset_selection(velo);
 	}
 	
 	struct value_dict *dict = dict_create();
-	navigate_to_plugin(tofi, target, dict);
+	navigate_to_plugin(velo, target, dict);
 	log_debug("Teleported to plugin: %s\n", target->name);
 	return true;
 }
 
-void add_character(struct tofi *tofi, xkb_keycode_t keycode)
+void add_character(struct velo *velo, xkb_keycode_t keycode)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	if (state->input_utf32_length >= N_ELEM(state->input_utf32) - 1) {
 		return;
@@ -389,7 +389,7 @@ void add_character(struct tofi *tofi, xkb_keycode_t keycode)
 
 	char buf[5];
 	int len = xkb_state_key_get_utf8(
-			tofi->xkb_state,
+			velo->xkb_state,
 			keycode,
 			buf,
 			sizeof(buf));
@@ -403,11 +403,11 @@ void add_character(struct tofi *tofi, xkb_keycode_t keycode)
 		state->input_utf8_length += len;
 		state->input_utf8[state->input_utf8_length] = '\0';
 
-		if (try_teleport(tofi)) {
+		if (try_teleport(velo)) {
 			return;
 		}
 
-		struct nav_level *level = tofi->nav_current;
+		struct nav_level *level = velo->nav_current;
 		if (level) {
 			switch (level->mode) {
 			case SELECTION_INPUT:
@@ -419,8 +419,8 @@ void add_character(struct tofi *tofi, xkb_keycode_t keycode)
 				strncpy(level->input_buffer, state->input_utf8, NAV_INPUT_MAX - 1);
 				level->input_buffer[NAV_INPUT_MAX - 1] = '\0';
 				level->input_length = state->input_utf8_length;
-				nav_filter_results(tofi, state->input_utf8);
-				reset_selection(tofi);
+				nav_filter_results(velo, state->input_utf8);
+				reset_selection(velo);
 				break;
 			default:
 				break;
@@ -432,10 +432,10 @@ void add_character(struct tofi *tofi, xkb_keycode_t keycode)
 			} else {
 				state->results = string_ref_vec_filter(&state->commands, state->input_utf8, MATCHING_ALGORITHM_FUZZY);
 			}
-			strncpy(tofi->base_input_buffer, state->input_utf8, 4 * VIEW_MAX_INPUT - 1);
-			tofi->base_input_buffer[4 * VIEW_MAX_INPUT - 1] = '\0';
-			tofi->base_input_length = state->input_utf8_length;
-			reset_selection(tofi);
+			strncpy(velo->base_input_buffer, state->input_utf8, 4 * VIEW_MAX_INPUT - 1);
+			velo->base_input_buffer[4 * VIEW_MAX_INPUT - 1] = '\0';
+			velo->base_input_length = state->input_utf8_length;
+			reset_selection(velo);
 		}
 	} else {
 		for (size_t i = state->input_utf32_length; i > state->cursor_position; i--) {
@@ -445,15 +445,15 @@ void add_character(struct tofi *tofi, xkb_keycode_t keycode)
 		state->input_utf32_length++;
 		state->input_utf32[state->input_utf32_length] = U'\0';
 
-		input_refresh_results(tofi);
+		input_refresh_results(velo);
 	}
 
 	state->cursor_position++;
 }
 
-void input_refresh_results(struct tofi *tofi)
+void input_refresh_results(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	size_t bytes_written = 0;
 	for (size_t i = 0; i < state->input_utf32_length; i++) {
@@ -464,7 +464,7 @@ void input_refresh_results(struct tofi *tofi)
 	state->input_utf8[bytes_written] = '\0';
 	state->input_utf8_length = bytes_written;
 
-	struct nav_level *level = tofi->nav_current;
+	struct nav_level *level = velo->nav_current;
 	if (level) {
 		switch (level->mode) {
 		case SELECTION_INPUT:
@@ -476,8 +476,8 @@ void input_refresh_results(struct tofi *tofi)
 			strncpy(level->input_buffer, state->input_utf8, NAV_INPUT_MAX - 1);
 			level->input_buffer[NAV_INPUT_MAX - 1] = '\0';
 			level->input_length = state->input_utf8_length;
-			nav_filter_results(tofi, state->input_utf8);
-			reset_selection(tofi);
+			nav_filter_results(velo, state->input_utf8);
+			reset_selection(velo);
 			return;
 		default:
 			break;
@@ -492,16 +492,16 @@ void input_refresh_results(struct tofi *tofi)
 		state->results = string_ref_vec_filter(&state->commands, state->input_utf8, MATCHING_ALGORITHM_FUZZY);
 	}
 	
-	strncpy(tofi->base_input_buffer, state->input_utf8, 4 * VIEW_MAX_INPUT - 1);
-	tofi->base_input_buffer[4 * VIEW_MAX_INPUT - 1] = '\0';
-	tofi->base_input_length = state->input_utf8_length;
+	strncpy(velo->base_input_buffer, state->input_utf8, 4 * VIEW_MAX_INPUT - 1);
+	velo->base_input_buffer[4 * VIEW_MAX_INPUT - 1] = '\0';
+	velo->base_input_length = state->input_utf8_length;
 	
-	reset_selection(tofi);
+	reset_selection(velo);
 }
 
-void delete_character(struct tofi *tofi)
+void delete_character(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	if (state->input_utf32_length == 0) {
 		return;
@@ -522,12 +522,12 @@ void delete_character(struct tofi *tofi)
 		state->input_utf32[state->input_utf32_length] = U'\0';
 	}
 
-	input_refresh_results(tofi);
+	input_refresh_results(velo);
 }
 
-void delete_word(struct tofi *tofi)
+void delete_word(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	if (state->cursor_position == 0) {
 		return;
@@ -548,23 +548,23 @@ void delete_word(struct tofi *tofi)
 	state->input_utf32[state->input_utf32_length] = U'\0';
 
 	state->cursor_position = new_cursor_pos;
-	input_refresh_results(tofi);
+	input_refresh_results(velo);
 }
 
-void clear_input(struct tofi *tofi)
+void clear_input(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	state->cursor_position = 0;
 	state->input_utf32_length = 0;
 	state->input_utf32[0] = U'\0';
 
-	input_refresh_results(tofi);
+	input_refresh_results(velo);
 }
 
-void paste(struct tofi *tofi)
+void paste(struct velo *velo)
 {
-	if (tofi->clipboard.wl_data_offer == NULL || tofi->clipboard.mime_type == NULL) {
+	if (velo->clipboard.wl_data_offer == NULL || velo->clipboard.mime_type == NULL) {
 		return;
 	}
 
@@ -574,22 +574,22 @@ void paste(struct tofi *tofi)
 		log_error("Failed to open pipe for clipboard: %s\n", strerror(errno));
 		return;
 	}
-	wl_data_offer_receive(tofi->clipboard.wl_data_offer, tofi->clipboard.mime_type, fildes[1]);
+	wl_data_offer_receive(velo->clipboard.wl_data_offer, velo->clipboard.mime_type, fildes[1]);
 	close(fildes[1]);
 
-	tofi->clipboard.fd = fildes[0];
+	velo->clipboard.fd = fildes[0];
 }
 
-void select_previous_result(struct tofi *tofi)
+void select_previous_result(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	if (state->selection > 0) {
 		state->selection--;
-		if (tofi->nav_current) {
-			tofi->nav_current->selection = state->selection;
+		if (velo->nav_current) {
+			velo->nav_current->selection = state->selection;
 		} else {
-			tofi->base_selection = state->selection;
+			velo->base_selection = state->selection;
 		}
 		return;
 	}
@@ -611,18 +611,18 @@ void select_previous_result(struct tofi *tofi)
 		state->last_num_results_drawn = page_size;
 	}
 	
-	if (tofi->nav_current) {
-		tofi->nav_current->selection = state->selection;
-		tofi->nav_current->first_result = state->first_result;
+	if (velo->nav_current) {
+		velo->nav_current->selection = state->selection;
+		velo->nav_current->first_result = state->first_result;
 	} else {
-		tofi->base_selection = state->selection;
-		tofi->base_first_result = state->first_result;
+		velo->base_selection = state->selection;
+		velo->base_first_result = state->first_result;
 	}
 }
 
-void select_next_result(struct tofi *tofi)
+void select_next_result(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	uint32_t nsel = MAX(MIN(state->num_results_drawn, state->results.count), 1);
 
@@ -638,28 +638,28 @@ void select_next_result(struct tofi *tofi)
 		state->last_num_results_drawn = state->num_results_drawn;
 	}
 	
-	if (tofi->nav_current) {
-		tofi->nav_current->selection = state->selection;
-		tofi->nav_current->first_result = state->first_result;
+	if (velo->nav_current) {
+		velo->nav_current->selection = state->selection;
+		velo->nav_current->first_result = state->first_result;
 	} else {
-		tofi->base_selection = state->selection;
-		tofi->base_first_result = state->first_result;
+		velo->base_selection = state->selection;
+		velo->base_first_result = state->first_result;
 	}
 }
 
-void previous_cursor_or_result(struct tofi *tofi)
+void previous_cursor_or_result(struct velo *velo)
 {
-	select_previous_result(tofi);
+	select_previous_result(velo);
 }
 
-void next_cursor_or_result(struct tofi *tofi)
+void next_cursor_or_result(struct velo *velo)
 {
-	select_next_result(tofi);
+	select_next_result(velo);
 }
 
-void select_previous_page(struct tofi *tofi)
+void select_previous_page(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	if (state->first_result >= state->last_num_results_drawn) {
 		state->first_result -= state->last_num_results_drawn;
@@ -669,18 +669,18 @@ void select_previous_page(struct tofi *tofi)
 	state->selection = 0;
 	state->last_num_results_drawn = state->num_results_drawn;
 	
-	if (tofi->nav_current) {
-		tofi->nav_current->selection = state->selection;
-		tofi->nav_current->first_result = state->first_result;
+	if (velo->nav_current) {
+		velo->nav_current->selection = state->selection;
+		velo->nav_current->first_result = state->first_result;
 	} else {
-		tofi->base_selection = state->selection;
-		tofi->base_first_result = state->first_result;
+		velo->base_selection = state->selection;
+		velo->base_first_result = state->first_result;
 	}
 }
 
-void select_next_page(struct tofi *tofi)
+void select_next_page(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	state->first_result += state->num_results_drawn;
 	if (state->first_result >= state->results.count) {
@@ -689,11 +689,11 @@ void select_next_page(struct tofi *tofi)
 	state->selection = 0;
 	state->last_num_results_drawn = state->num_results_drawn;
 	
-	if (tofi->nav_current) {
-		tofi->nav_current->selection = state->selection;
-		tofi->nav_current->first_result = state->first_result;
+	if (velo->nav_current) {
+		velo->nav_current->selection = state->selection;
+		velo->nav_current->first_result = state->first_result;
 	} else {
-		tofi->base_selection = state->selection;
-		tofi->base_first_result = state->first_result;
+		velo->base_selection = state->selection;
+		velo->base_first_result = state->first_result;
 	}
 }

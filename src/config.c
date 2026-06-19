@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include "tofi.h"
+#include "velo.h"
 #include "color.h"
 #include "config.h"
 #include "log.h"
@@ -75,7 +75,7 @@ struct uint32_percent {
 };
 
 static char *strip(const char *str);
-static bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const char *option, const char *value);
+static bool parse_option(struct velo *velo, const char *filename, size_t lineno, const char *option, const char *value);
 static char *get_config_path(void);
 static uint32_t fixup_percentage(uint32_t value, uint32_t base, bool is_percent);
 
@@ -104,7 +104,7 @@ static struct uint32_percent parse_uint32_percent(const char *filename, size_t l
 		log_error((fmt), __VA_ARGS__); \
 	}
 
-void config_load(struct tofi *tofi, const char *filename)
+void config_load(struct velo *velo, const char *filename)
 {
 	char *default_filename = NULL;
 	if (!filename) {
@@ -251,7 +251,7 @@ void config_load(struct tofi *tofi, const char *filename)
 			free(option_stripped);
 			continue;
 		}
-		if (!parse_option(tofi, filename, lineno, option_stripped, value_stripped)) {
+		if (!parse_option(velo, filename, lineno, option_stripped, value_stripped)) {
 			num_errs++;
 		}
 
@@ -298,39 +298,39 @@ char *strip(const char *str)
 	return buf;
 }
 
-bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const char *option, const char *value)
+bool parse_option(struct velo *velo, const char *filename, size_t lineno, const char *option, const char *value)
 {
 	bool err = false;
 	struct uint32_percent percent;
 	if (strcasecmp(option, "anchor") == 0) {
 		uint32_t val = parse_anchor(filename, lineno, value, &err);
 		if (!err) {
-			tofi->anchor = val;
+			velo->anchor = val;
 		}
 	} else if (strcasecmp(option, "background-color") == 0) {
 		struct color val = parse_color(filename, lineno, value, &err);
 		if (!err) {
-			tofi->view_theme.background_color = val;
+			velo->view_theme.background_color = val;
 		}
 	} else if (strcasecmp(option, "background-opacity") == 0) {
 		float val = parse_float(filename, lineno, value, &err);
 		if (!err) {
 			if (val < 0.1f) val = 0.1f;
 			if (val > 1.0f) val = 1.0f;
-			tofi->view_theme.background_opacity = val;
+			velo->view_theme.background_opacity = val;
 		}
 	} else if (strcasecmp(option, "corner-radius") == 0) {
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
-			tofi->view_theme.corner_radius = val;
+			velo->view_theme.corner_radius = val;
 		}
 	} else if (strcasecmp(option, "output") == 0) {
-		snprintf(tofi->target_output_name, N_ELEM(tofi->target_output_name), "%s", value);
+		snprintf(velo->target_output_name, N_ELEM(velo->target_output_name), "%s", value);
 	} else if (strcasecmp(option, "font") == 0) {
 		if ((strlen(value) > 2) && (value[0] == '~') && (value[1] == '/')) {
-			snprintf(tofi->view_theme.font_name, N_ELEM(tofi->view_theme.font_name), "%s%s", getenv("HOME"), &(value[1]));
+			snprintf(velo->view_theme.font_name, N_ELEM(velo->view_theme.font_name), "%s%s", getenv("HOME"), &(value[1]));
 		} else {
-			snprintf(tofi->view_theme.font_name, N_ELEM(tofi->view_theme.font_name), "%s", value);
+			snprintf(velo->view_theme.font_name, N_ELEM(velo->view_theme.font_name), "%s", value);
 		}
 	} else if (strcasecmp(option, "font-size") == 0) {
 		uint32_t val =  parse_uint32(filename, lineno, value, &err);
@@ -338,84 +338,84 @@ bool parse_option(struct tofi *tofi, const char *filename, size_t lineno, const 
 			err = true;
 			PARSE_ERROR(filename, lineno, "Option \"%s\" must be greater than 0.\n", option);
 		} else {
-			tofi->view_theme.font_size = val;
+			velo->view_theme.font_size = val;
 		}
 	} else if (strcasecmp(option, "prompt-text") == 0) {
-		snprintf(tofi->view_state.prompt, N_ELEM(tofi->view_state.prompt), "%s", value);
+		snprintf(velo->view_state.prompt, N_ELEM(velo->view_state.prompt), "%s", value);
 	} else if (strcasecmp(option, "border-width") == 0) {
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
-			tofi->view_theme.border_width = val;
+			velo->view_theme.border_width = val;
 		}
 	} else if (strcasecmp(option, "text-color") == 0) {
 		struct color val = parse_color(filename, lineno, value, &err);
 		if (!err) {
-			tofi->view_theme.foreground_color = val;
+			velo->view_theme.foreground_color = val;
 		}
 	} else if (strcasecmp(option, "accent-color") == 0) {
 		struct color val = parse_color(filename, lineno, value, &err);
 		if (!err) {
-			tofi->view_theme.accent_color = val;
+			velo->view_theme.accent_color = val;
 		}
 	} else if (strcasecmp(option, "width") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.width = percent.value;
-			tofi->window.width_is_percent = percent.percent;
+			velo->window.width = percent.value;
+			velo->window.width_is_percent = percent.percent;
 		}
 	} else if (strcasecmp(option, "height") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.height = percent.value;
-			tofi->window.height_is_percent = percent.percent;
+			velo->window.height = percent.value;
+			velo->window.height_is_percent = percent.percent;
 		}
 	} else if (strcasecmp(option, "margin-top") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.margin_top = percent.value;
-			tofi->window.margin_top_is_percent = percent.percent;
+			velo->window.margin_top = percent.value;
+			velo->window.margin_top_is_percent = percent.percent;
 		}
 	} else if (strcasecmp(option, "margin-bottom") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.margin_bottom = percent.value;
-			tofi->window.margin_bottom_is_percent = percent.percent;
+			velo->window.margin_bottom = percent.value;
+			velo->window.margin_bottom_is_percent = percent.percent;
 		}
 	} else if (strcasecmp(option, "margin-left") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.margin_left = percent.value;
-			tofi->window.margin_left_is_percent = percent.percent;
+			velo->window.margin_left = percent.value;
+			velo->window.margin_left_is_percent = percent.percent;
 		}
 	} else if (strcasecmp(option, "margin-right") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
 		if (!err) {
-			tofi->window.margin_right = percent.value;
-			tofi->window.margin_right_is_percent = percent.percent;
+			velo->window.margin_right = percent.value;
+			velo->window.margin_right_is_percent = percent.percent;
 		}
 	} else if (strcasecmp(option, "padding") == 0) {
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
-			tofi->view_theme.padding_top = val;
-			tofi->view_theme.padding_bottom = val;
-			tofi->view_theme.padding_left = val;
-			tofi->view_theme.padding_right = val;
+			velo->view_theme.padding_top = val;
+			velo->view_theme.padding_bottom = val;
+			velo->view_theme.padding_left = val;
+			velo->view_theme.padding_right = val;
 		}
 	} else if (strcasecmp(option, "padding-top") == 0) {
-		tofi->view_theme.padding_top = parse_uint32(filename, lineno, value, &err);
+		velo->view_theme.padding_top = parse_uint32(filename, lineno, value, &err);
 	} else if (strcasecmp(option, "padding-bottom") == 0) {
-		tofi->view_theme.padding_bottom = parse_uint32(filename, lineno, value, &err);
+		velo->view_theme.padding_bottom = parse_uint32(filename, lineno, value, &err);
 	} else if (strcasecmp(option, "padding-left") == 0) {
-		tofi->view_theme.padding_left = parse_uint32(filename, lineno, value, &err);
+		velo->view_theme.padding_left = parse_uint32(filename, lineno, value, &err);
 	} else if (strcasecmp(option, "padding-right") == 0) {
-		tofi->view_theme.padding_right = parse_uint32(filename, lineno, value, &err);
+		velo->view_theme.padding_right = parse_uint32(filename, lineno, value, &err);
 	} else if (strcasecmp(option, "plugins") == 0) {
 		plugin_apply_filter(value);
 	} else if (strcasecmp(option, "theme") == 0) {
-		snprintf(tofi->theme_name, N_ELEM(tofi->theme_name), "%s", value);
+		snprintf(velo->theme_name, N_ELEM(velo->theme_name), "%s", value);
 	} else if (strcasecmp(option, "autosize") == 0) {
 		if (strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0 || strcasecmp(value, "1") == 0) {
-			tofi->autosize = true;
+			velo->autosize = true;
 		}
 	} else {
 		PARSE_ERROR(filename, lineno, "Unknown option \"%s\"\n", option);
@@ -439,7 +439,7 @@ static char *resolve_theme_path(const char *theme_name)
 	}
 	if (config_base) {
 		char path[512];
-		snprintf(path, sizeof(path), "%s/hypr-tofi/themes/%s.toml", config_base, theme_name);
+		snprintf(path, sizeof(path), "%s/velo/themes/%s.toml", config_base, theme_name);
 		if (access(path, R_OK) == 0) {
 			free(fallback_base);
 			return xstrdup(path);
@@ -467,7 +467,7 @@ void config_list_themes(void)
 	}
 
 	char path[512];
-	snprintf(path, sizeof(path), "%s/hypr-tofi/themes", config_base);
+	snprintf(path, sizeof(path), "%s/velo/themes", config_base);
 
 	DIR *dir = opendir(path);
 	if (!dir) {
@@ -488,24 +488,24 @@ void config_list_themes(void)
 	free(fallback_base);
 }
 
-void config_load_theme(struct tofi *tofi)
+void config_load_theme(struct velo *velo)
 {
-	if (tofi->theme_name[0] == '\0') {
+	if (velo->theme_name[0] == '\0') {
 		return;
 	}
-	char *path = resolve_theme_path(tofi->theme_name);
+	char *path = resolve_theme_path(velo->theme_name);
 	if (!path) {
-		log_error("Theme '%s' not found.\n", tofi->theme_name);
+		log_error("Theme '%s' not found.\n", velo->theme_name);
 		return;
 	}
 	log_debug("Loading theme: %s\n", path);
-	config_load(tofi, path);
+	config_load(velo, path);
 	free(path);
 }
 
-bool config_apply(struct tofi *tofi, const char *option, const char *value)
+bool config_apply(struct velo *velo, const char *option, const char *value)
 {
-	return parse_option(tofi, "", 0, option, value);
+	return parse_option(velo, "", 0, option, value);
 }
 
 uint32_t fixup_percentage(uint32_t value, uint32_t base, bool is_percent)
@@ -516,72 +516,72 @@ uint32_t fixup_percentage(uint32_t value, uint32_t base, bool is_percent)
 	return value;
 }
 
-void config_fixup_values(struct tofi *tofi)
+void config_fixup_values(struct velo *velo)
 {
-	uint32_t base_width = tofi->output_width;
-	uint32_t base_height = tofi->output_height;
+	uint32_t base_width = velo->output_width;
+	uint32_t base_height = velo->output_height;
 	uint32_t scale;
-	if (tofi->window.fractional_scale != 0) {
-		scale = tofi->window.fractional_scale;
+	if (velo->window.fractional_scale != 0) {
+		scale = velo->window.fractional_scale;
 	} else {
-		scale = tofi->window.scale * 120;
+		scale = velo->window.scale * 120;
 	}
 
 	/*
 	 * If we're going to be scaling these values in Cairo,
 	 * we need to apply the inverse scale here.
 	 */
-	if (tofi->use_scale) {
+	if (velo->use_scale) {
 		base_width = scale_apply_inverse(base_width, scale);
 		base_height = scale_apply_inverse(base_height, scale);
 	}
 
-	tofi->window.margin_top = fixup_percentage(
-			tofi->window.margin_top,
+	velo->window.margin_top = fixup_percentage(
+			velo->window.margin_top,
 			base_height,
-			tofi->window.margin_top_is_percent);
-	tofi->window.margin_bottom = fixup_percentage(
-			tofi->window.margin_bottom,
+			velo->window.margin_top_is_percent);
+	velo->window.margin_bottom = fixup_percentage(
+			velo->window.margin_bottom,
 			base_height,
-			tofi->window.margin_bottom_is_percent);
-	tofi->window.margin_left = fixup_percentage(
-			tofi->window.margin_left,
+			velo->window.margin_bottom_is_percent);
+	velo->window.margin_left = fixup_percentage(
+			velo->window.margin_left,
 			base_width,
-			tofi->window.margin_left_is_percent);
-	tofi->window.margin_right = fixup_percentage(
-			tofi->window.margin_right,
+			velo->window.margin_left_is_percent);
+	velo->window.margin_right = fixup_percentage(
+			velo->window.margin_right,
 			base_width,
-			tofi->window.margin_right_is_percent);
+			velo->window.margin_right_is_percent);
 	/*
 	 * Window width and height are a little special. We're only going to be
 	 * using them to specify sizes to Wayland, which always wants scaled
 	 * pixels, so always scale them here (unless we've directly specified a
 	 * scaled size).
 	 */
-	tofi->window.width = fixup_percentage(
-			tofi->window.width,
-			tofi->output_width,
-			tofi->window.width_is_percent);
-	tofi->window.height = fixup_percentage(
-			tofi->window.height,
-			tofi->output_height,
-			tofi->window.height_is_percent);
-	if (tofi->window.width_is_percent || !tofi->use_scale) {
-		tofi->window.width = scale_apply_inverse(tofi->window.width, scale);
+	velo->window.width = fixup_percentage(
+			velo->window.width,
+			velo->output_width,
+			velo->window.width_is_percent);
+	velo->window.height = fixup_percentage(
+			velo->window.height,
+			velo->output_height,
+			velo->window.height_is_percent);
+	if (velo->window.width_is_percent || !velo->use_scale) {
+		velo->window.width = scale_apply_inverse(velo->window.width, scale);
 	}
-	if (tofi->window.height_is_percent || !tofi->use_scale) {
-		tofi->window.height = scale_apply_inverse(tofi->window.height, scale);
+	if (velo->window.height_is_percent || !velo->use_scale) {
+		velo->window.height = scale_apply_inverse(velo->window.height, scale);
 	}
 
 	/* background_opacity overrides any alpha from the hex color. */
-	tofi->view_theme.background_color.a = tofi->view_theme.background_opacity;
+	velo->view_theme.background_color.a = velo->view_theme.background_opacity;
 }
 
 char *get_config_path()
 {
 	char *base_dir = getenv("XDG_CONFIG_HOME");
 	char *ext = "";
-	size_t len = strlen("/hypr-tofi/config") + 1;
+	size_t len = strlen("/velo/config") + 1;
 	if (!base_dir) {
 		base_dir = getenv("HOME");
 		ext = "/.config";
@@ -592,7 +592,7 @@ char *get_config_path()
 	}
 	len += strlen(base_dir) + strlen(ext) + 2;
 	char *name = xcalloc(len, sizeof(*name));
-	snprintf(name, len, "%s%s%s", base_dir, ext, "/hypr-tofi/config");
+	snprintf(name, len, "%s%s%s", base_dir, ext, "/velo/config");
 	return name;
 }
 

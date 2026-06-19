@@ -1,5 +1,5 @@
-#ifndef TOFI_H
-#define TOFI_H
+#ifndef VELO_H
+#define VELO_H
 
 #include <sys/types.h>
 #include <stdbool.h>
@@ -29,7 +29,7 @@ struct output_list_element {
 	int32_t transform;
 };
 
-struct tofi {
+struct velo {
 	struct wl_display *wl_display;
 	struct wl_registry *wl_registry;
 	struct wl_compositor *wl_compositor;
@@ -121,8 +121,8 @@ struct tofi {
 
 struct plugin;
 
-void nav_push_level(struct tofi *tofi, struct nav_level *level);
-void update_view_state_from_level(struct tofi *tofi, struct nav_level *level);
-bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_dict *dict);
+void nav_push_level(struct velo *velo, struct nav_level *level);
+void update_view_state_from_level(struct velo *velo, struct nav_level *level);
+bool navigate_to_plugin(struct velo *velo, struct plugin *target, struct value_dict *dict);
 
 #endif

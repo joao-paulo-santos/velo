@@ -1,13 +1,13 @@
-#ifndef TOFI_CONFIG_H
-#define TOFI_CONFIG_H
+#ifndef VELO_CONFIG_H
+#define VELO_CONFIG_H
 
 #include <stdbool.h>
-#include "tofi.h"
+#include "velo.h"
 
-void config_load(struct tofi *tofi, const char *filename);
-void config_load_theme(struct tofi *tofi);
-bool config_apply(struct tofi *tofi, const char *option, const char *value);
-void config_fixup_values(struct tofi *tofi);
+void config_load(struct velo *velo, const char *filename);
+void config_load_theme(struct velo *velo);
+bool config_apply(struct velo *velo, const char *option, const char *value);
+void config_fixup_values(struct velo *velo);
 void config_list_themes(void);
 
-#endif /* TOFI_CONFIG_H */
+#endif /* VELO_CONFIG_H */

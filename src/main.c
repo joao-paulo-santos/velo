@@ -17,7 +17,7 @@
 #include <wayland-client.h>
 #include <wayland-util.h>
 #include <xkbcommon/xkbcommon.h>
-#include "tofi.h"
+#include "velo.h"
 #include "builtin.h"
 #include "config.h"
 #include "input.h"
@@ -57,7 +57,7 @@ static void zwlr_layer_surface_configure(
 		uint32_t width,
 		uint32_t height)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	if (width == 0 || height == 0) {
 		/* Compositor is deferring to us, so don't do anything. */
 		log_debug("Layer surface configure with no width or height.\n");
@@ -70,16 +70,16 @@ static void zwlr_layer_surface_configure(
 	 * We want actual pixel width / height, so we have to scale the
 	 * values provided by Wayland.
 	 */
-	if (tofi->window.fractional_scale != 0) {
-		tofi->window.surface.width = scale_apply(width, tofi->window.fractional_scale);
-		tofi->window.surface.height = scale_apply(height, tofi->window.fractional_scale);
+	if (velo->window.fractional_scale != 0) {
+		velo->window.surface.width = scale_apply(width, velo->window.fractional_scale);
+		velo->window.surface.height = scale_apply(height, velo->window.fractional_scale);
 	} else {
-		tofi->window.surface.width = width * tofi->window.scale;
-		tofi->window.surface.height = height * tofi->window.scale;
+		velo->window.surface.width = width * velo->window.scale;
+		velo->window.surface.height = height * velo->window.scale;
 	}
 
 	zwlr_layer_surface_v1_ack_configure(
-			tofi->window.zwlr_layer_surface,
+			velo->window.zwlr_layer_surface,
 			serial);
 }
 
@@ -87,8 +87,8 @@ static void zwlr_layer_surface_close(
 		void *data,
 		struct zwlr_layer_surface_v1 *zwlr_layer_surface)
 {
-	struct tofi *tofi = data;
-	tofi->closed = true;
+	struct velo *velo = data;
+	velo->closed = true;
 	log_debug("Layer surface close.\n");
 }
 
@@ -104,7 +104,7 @@ static void wl_keyboard_keymap(
 		int32_t fd,
 		uint32_t size)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	assert(format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1);
 
 	char *map_shm = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -112,7 +112,7 @@ static void wl_keyboard_keymap(
 
 	log_debug("Configuring keyboard.\n");
 	struct xkb_keymap *xkb_keymap = xkb_keymap_new_from_string(
-			tofi->xkb_context,
+			velo->xkb_context,
 			map_shm,
 			XKB_KEYMAP_FORMAT_TEXT_V1,
 			XKB_KEYMAP_COMPILE_NO_FLAGS);
@@ -120,10 +120,10 @@ static void wl_keyboard_keymap(
 	close(fd);
 
 	struct xkb_state *xkb_state = xkb_state_new(xkb_keymap);
-	xkb_keymap_unref(tofi->xkb_keymap);
-	xkb_state_unref(tofi->xkb_state);
-	tofi->xkb_keymap = xkb_keymap;
-	tofi->xkb_state = xkb_state;
+	xkb_keymap_unref(velo->xkb_keymap);
+	xkb_state_unref(velo->xkb_state);
+	velo->xkb_keymap = xkb_keymap;
+	velo->xkb_state = xkb_state;
 	log_debug("Keyboard configured.\n");
 }
 
@@ -154,7 +154,7 @@ static void wl_keyboard_key(
 		uint32_t key,
 		uint32_t state)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 
 	/*
 	 * If this wasn't a keypress (i.e. was a key release), just update key
@@ -163,21 +163,21 @@ static void wl_keyboard_key(
 	uint32_t keycode = key + 8;
 
 	if (state != WL_KEYBOARD_KEY_STATE_PRESSED) {
-		if (keycode == tofi->repeat.keycode) {
-			tofi->repeat.active = false;
+		if (keycode == velo->repeat.keycode) {
+			velo->repeat.active = false;
 		} else {
-			tofi->repeat.next = gettime_ms() + tofi->repeat.delay;
+			velo->repeat.next = gettime_ms() + velo->repeat.delay;
 		}
 		return;
 	}
 
 	/* A rate of 0 disables key repeat */
-	if (xkb_keymap_key_repeats(tofi->xkb_keymap, keycode) && tofi->repeat.rate != 0) {
-		tofi->repeat.active = true;
-		tofi->repeat.keycode = keycode;
-		tofi->repeat.next = gettime_ms() + tofi->repeat.delay;
+	if (xkb_keymap_key_repeats(velo->xkb_keymap, keycode) && velo->repeat.rate != 0) {
+		velo->repeat.active = true;
+		velo->repeat.keycode = keycode;
+		velo->repeat.next = gettime_ms() + velo->repeat.delay;
 	}
-	input_handle_keypress(tofi, keycode);
+	input_handle_keypress(velo, keycode);
 }
 
 static void wl_keyboard_modifiers(
@@ -189,12 +189,12 @@ static void wl_keyboard_modifiers(
 		uint32_t mods_locked,
 		uint32_t group)
 {
-	struct tofi *tofi = data;
-	if (tofi->xkb_state == NULL) {
+	struct velo *velo = data;
+	if (velo->xkb_state == NULL) {
 		return;
 	}
 	xkb_state_update_mask(
-			tofi->xkb_state,
+			velo->xkb_state,
 			mods_depressed,
 			mods_latched,
 			mods_locked,
@@ -209,9 +209,9 @@ static void wl_keyboard_repeat_info(
 		int32_t rate,
 		int32_t delay)
 {
-	struct tofi *tofi = data;
-	tofi->repeat.rate = rate;
-	tofi->repeat.delay = delay;
+	struct velo *velo = data;
+	velo->repeat.rate = rate;
+	velo->repeat.delay = delay;
 	if (rate > 0) {
 		log_debug("Key repeat every %u ms after %u ms.\n",
 				1000 / rate,
@@ -259,9 +259,9 @@ static void wl_pointer_motion(
 		wl_fixed_t surface_x,
 		wl_fixed_t surface_y)
 {
-	struct tofi *tofi = data;
-	tofi->pointer_x = wl_fixed_to_int(surface_x);
-	tofi->pointer_y = wl_fixed_to_int(surface_y);
+	struct velo *velo = data;
+	velo->pointer_x = wl_fixed_to_int(surface_x);
+	velo->pointer_y = wl_fixed_to_int(surface_y);
 }
 
 static void wl_pointer_button(
@@ -272,7 +272,7 @@ static void wl_pointer_button(
 		uint32_t button,
 		enum wl_pointer_button_state state)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 
 	if (state != WL_POINTER_BUTTON_STATE_PRESSED) {
 		return;
@@ -282,31 +282,31 @@ static void wl_pointer_button(
 		return;
 	}
 
-	if (tofi->pointer_x < 0 || tofi->pointer_y < 0 ||
-	    tofi->pointer_x >= (int32_t)tofi->window.width ||
-	    tofi->pointer_y >= (int32_t)tofi->window.height) {
-		tofi->closed = true;
+	if (velo->pointer_x < 0 || velo->pointer_y < 0 ||
+	    velo->pointer_x >= (int32_t)velo->window.width ||
+	    velo->pointer_y >= (int32_t)velo->window.height) {
+		velo->closed = true;
 		return;
 	}
 
-	if (tofi->view_layout.result_row_height <= 0 || tofi->view_state.num_results_drawn == 0) {
+	if (velo->view_layout.result_row_height <= 0 || velo->view_state.num_results_drawn == 0) {
 		return;
 	}
 
-	int32_t rel_y = tofi->pointer_y - tofi->view_layout.result_start_y;
+	int32_t rel_y = velo->pointer_y - velo->view_layout.result_start_y;
 	if (rel_y < 0) {
 		return;
 	}
 
-	uint32_t clicked_index = (uint32_t)(rel_y / tofi->view_layout.result_row_height);
-	if (clicked_index >= tofi->view_state.num_results_drawn) {
+	uint32_t clicked_index = (uint32_t)(rel_y / velo->view_layout.result_row_height);
+	if (clicked_index >= velo->view_state.num_results_drawn) {
 		return;
 	}
 
-	if (clicked_index == tofi->view_state.selection) {
-		tofi->submit = true;
+	if (clicked_index == velo->view_state.selection) {
+		velo->submit = true;
 	} else {
-		input_select_result(tofi, clicked_index);
+		input_select_result(velo, clicked_index);
 	}
 }
 
@@ -317,7 +317,7 @@ static void wl_pointer_axis(
 		enum wl_pointer_axis axis,
 		wl_fixed_t value)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 
 	if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL) {
 		return;
@@ -325,9 +325,9 @@ static void wl_pointer_axis(
 
 	double scroll = wl_fixed_to_double(value);
 	if (scroll > 0) {
-		input_scroll_down(tofi);
+		input_scroll_down(velo);
 	} else if (scroll < 0) {
-		input_scroll_up(tofi);
+		input_scroll_up(velo);
 	}
 }
 
@@ -379,34 +379,34 @@ static void wl_seat_capabilities(
 		struct wl_seat *wl_seat,
 		uint32_t capabilities)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 
 	bool have_keyboard = capabilities & WL_SEAT_CAPABILITY_KEYBOARD;
 	bool have_pointer = capabilities & WL_SEAT_CAPABILITY_POINTER;
 
-	if (have_keyboard && tofi->wl_keyboard == NULL) {
-		tofi->wl_keyboard = wl_seat_get_keyboard(tofi->wl_seat);
+	if (have_keyboard && velo->wl_keyboard == NULL) {
+		velo->wl_keyboard = wl_seat_get_keyboard(velo->wl_seat);
 		wl_keyboard_add_listener(
-				tofi->wl_keyboard,
+				velo->wl_keyboard,
 				&wl_keyboard_listener,
-				tofi);
+				velo);
 		log_debug("Got keyboard from seat.\n");
-	} else if (!have_keyboard && tofi->wl_keyboard != NULL) {
-		wl_keyboard_release(tofi->wl_keyboard);
-		tofi->wl_keyboard = NULL;
+	} else if (!have_keyboard && velo->wl_keyboard != NULL) {
+		wl_keyboard_release(velo->wl_keyboard);
+		velo->wl_keyboard = NULL;
 		log_debug("Released keyboard.\n");
 	}
 
-	if (have_pointer && tofi->wl_pointer == NULL) {
-		tofi->wl_pointer = wl_seat_get_pointer(tofi->wl_seat);
+	if (have_pointer && velo->wl_pointer == NULL) {
+		velo->wl_pointer = wl_seat_get_pointer(velo->wl_seat);
 		wl_pointer_add_listener(
-				tofi->wl_pointer,
+				velo->wl_pointer,
 				&wl_pointer_listener,
-				tofi);
+				velo);
 		log_debug("Got pointer from seat.\n");
-	} else if (!have_pointer && tofi->wl_pointer != NULL) {
-		wl_pointer_release(tofi->wl_pointer);
-		tofi->wl_pointer = NULL;
+	} else if (!have_pointer && velo->wl_pointer != NULL) {
+		wl_pointer_release(velo->wl_pointer);
+		velo->wl_pointer = NULL;
 		log_debug("Released pointer.\n");
 	}
 }
@@ -550,9 +550,9 @@ static void output_geometry(
 		const char *model,
 		int32_t transform)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	struct output_list_element *el;
-	wl_list_for_each(el, &tofi->output_list, link) {
+	wl_list_for_each(el, &velo->output_list, link) {
 		if (el->wl_output == wl_output) {
 			el->transform = transform;
 		}
@@ -567,9 +567,9 @@ static void output_mode(
 		int32_t height,
 		int32_t refresh)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	struct output_list_element *el;
-	wl_list_for_each(el, &tofi->output_list, link) {
+	wl_list_for_each(el, &velo->output_list, link) {
 		if (el->wl_output == wl_output) {
 			if (flags & WL_OUTPUT_MODE_CURRENT) {
 				el->width = width;
@@ -584,9 +584,9 @@ static void output_scale(
 		struct wl_output *wl_output,
 		int32_t factor)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	struct output_list_element *el;
-	wl_list_for_each(el, &tofi->output_list, link) {
+	wl_list_for_each(el, &velo->output_list, link) {
 		if (el->wl_output == wl_output) {
 			el->scale = factor;
 		}
@@ -598,9 +598,9 @@ static void output_name(
 		struct wl_output *wl_output,
 		const char *name)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	struct output_list_element *el;
-	wl_list_for_each(el, &tofi->output_list, link) {
+	wl_list_for_each(el, &velo->output_list, link) {
 		if (el->wl_output == wl_output) {
 			el->name = xstrdup(name);
 		}
@@ -638,25 +638,25 @@ static void registry_global(
 		const char *interface,
 		uint32_t version)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	//log_debug("Registry %u: %s v%u.\n", name, interface, version);
 	if (!strcmp(interface, wl_compositor_interface.name)) {
-		tofi->wl_compositor = wl_registry_bind(
+		velo->wl_compositor = wl_registry_bind(
 				wl_registry,
 				name,
 				&wl_compositor_interface,
 				4);
 		log_debug("Bound to compositor %u.\n", name);
 	} else if (!strcmp(interface, wl_seat_interface.name)) {
-		tofi->wl_seat = wl_registry_bind(
+		velo->wl_seat = wl_registry_bind(
 				wl_registry,
 				name,
 				&wl_seat_interface,
 				7);
 		wl_seat_add_listener(
-				tofi->wl_seat,
+				velo->wl_seat,
 				&wl_seat_listener,
-				tofi);
+				velo);
 		log_debug("Bound to seat %u.\n", name);
 	} else if (!strcmp(interface, wl_output_interface.name)) {
 		struct output_list_element *el = xmalloc(sizeof(*el));
@@ -675,18 +675,18 @@ static void registry_global(
 		wl_output_add_listener(
 				el->wl_output,
 				&wl_output_listener,
-				tofi);
-		wl_list_insert(&tofi->output_list, &el->link);
+				velo);
+		wl_list_insert(&velo->output_list, &el->link);
 		log_debug("Bound to output %u.\n", name);
 	} else if (!strcmp(interface, wl_shm_interface.name)) {
-		tofi->wl_shm = wl_registry_bind(
+		velo->wl_shm = wl_registry_bind(
 				wl_registry,
 				name,
 				&wl_shm_interface,
 				1);
 		log_debug("Bound to shm %u.\n", name);
 	} else if (!strcmp(interface, wl_data_device_manager_interface.name)) {
-		tofi->wl_data_device_manager = wl_registry_bind(
+		velo->wl_data_device_manager = wl_registry_bind(
 				wl_registry,
 				name,
 				&wl_data_device_manager_interface,
@@ -699,21 +699,21 @@ static void registry_global(
 		} else {
 			version = 3;
 		}
-		tofi->zwlr_layer_shell = wl_registry_bind(
+		velo->zwlr_layer_shell = wl_registry_bind(
 				wl_registry,
 				name,
 				&zwlr_layer_shell_v1_interface,
 				version);
 		log_debug("Bound to zwlr_layer_shell_v1 %u.\n", name);
 	} else if (!strcmp(interface, wp_viewporter_interface.name)) {
-		tofi->wp_viewporter = wl_registry_bind(
+		velo->wp_viewporter = wl_registry_bind(
 				wl_registry,
 				name,
 				&wp_viewporter_interface,
 				1);
 		log_debug("Bound to wp_viewporter %u.\n", name);
 	} else if (!strcmp(interface, wp_fractional_scale_manager_v1_interface.name)) {
-		tofi->wp_fractional_scale_manager = wl_registry_bind(
+		velo->wp_fractional_scale_manager = wl_registry_bind(
 				wl_registry,
 				name,
 				&wp_fractional_scale_manager_v1_interface,
@@ -788,8 +788,8 @@ static void dummy_fractional_scale_preferred_scale(
 		struct wp_fractional_scale_v1 *wp_fractional_scale,
 		uint32_t scale)
 {
-	struct tofi *tofi = data;
-	tofi->window.fractional_scale = scale;
+	struct velo *velo = data;
+	velo->window.fractional_scale = scale;
 }
 
 static const struct wp_fractional_scale_v1_listener dummy_fractional_scale_listener = {
@@ -801,11 +801,11 @@ static void dummy_surface_enter(
 		struct wl_surface *wl_surface,
 		struct wl_output *wl_output)
 {
-	struct tofi *tofi = data;
+	struct velo *velo = data;
 	struct output_list_element *el;
-	wl_list_for_each(el, &tofi->output_list, link) {
+	wl_list_for_each(el, &velo->output_list, link) {
 		if (el->wl_output == wl_output) {
-			tofi->default_output = el;
+			velo->default_output = el;
 			break;
 		}
 	}
@@ -828,7 +828,7 @@ static const struct wl_surface_listener dummy_surface_listener = {
 static void usage(bool err)
 {
 	fprintf(err ? stderr : stdout, "%s",
-"Usage: hypr-tofi [options]\n"
+"Usage: velo [options]\n"
 "\n"
 "Options:\n"
 "  -h, --help                  Print this message and exit.\n"
@@ -856,8 +856,8 @@ static void usage(bool err)
 "      --corner-radius <px>    Corner radius.\n"
 "  -L, --list-themes           List available themes and exit.\n"
 "\n"
-"Config file: ~/.config/hypr-tofi/config\n"
-"Plugins dir: ~/.config/hypr-tofi/plugins/\n"
+"Config file: ~/.config/velo/config\n"
+"Plugins dir: ~/.config/velo/plugins/\n"
 	);
 }
 
@@ -893,7 +893,7 @@ const struct option long_options[] = {
 };
 const char *short_options = ":hc:f:p:e:t:PISL";
 
-static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
+static void parse_args(struct velo *velo, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
 {
 
 	bool load_default_config = true;
@@ -916,7 +916,7 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 			config_list_themes();
 			exit(EXIT_SUCCESS);
 		} else if (opt == 'c') {
-			config_load(tofi, optarg);
+			config_load(velo, optarg);
 			load_default_config = false;
 		} else if (opt == 'f') {
 			plugin_apply_filter(optarg);
@@ -927,11 +927,11 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 		} else if (opt == 't') {
 			cli_theme = optarg;
 		} else if (opt == 'P') {
-			tofi->picker_mode = true;
+			velo->picker_mode = true;
 		} else if (opt == 'I') {
-			tofi->input_mode = true;
+			velo->input_mode = true;
 		} else if (opt == 'S') {
-			tofi->view_state.sensitive = true;
+			velo->view_state.sensitive = true;
 		} else if (opt == ':') {
 			log_error("Option %s requires an argument.\n", argv[optind - 1]);
 			usage(true);
@@ -948,30 +948,30 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 		opt = getopt_long(argc, argv, short_options, long_options, &option_index);
 	}
 	if (load_default_config) {
-		config_load(tofi, NULL);
+		config_load(velo, NULL);
 	}
 
-	if ((tofi->picker_mode || tofi->input_mode) && (*entry_plugin || *plugin_list)) {
+	if ((velo->picker_mode || velo->input_mode) && (*entry_plugin || *plugin_list)) {
 		log_error("--pick/--input cannot be combined with -e or -p.\n");
 		exit(EXIT_FAILURE);
 	}
-	if (tofi->picker_mode && tofi->input_mode) {
+	if (velo->picker_mode && velo->input_mode) {
 		log_error("--pick and --input cannot be combined.\n");
 		exit(EXIT_FAILURE);
 	}
 
 	if (cli_theme) {
-		snprintf(tofi->theme_name, N_ELEM(tofi->theme_name), "%s", cli_theme);
+		snprintf(velo->theme_name, N_ELEM(velo->theme_name), "%s", cli_theme);
 	}
 
-	config_load_theme(tofi);
+	config_load_theme(velo);
 
 	/* Second pass, parse everything else. */
 	optind = 1;
 	opt = getopt_long(argc, argv, short_options, long_options, &option_index);
 	while (opt != -1) {
 		if (opt == 0) {
-			if (!config_apply(tofi, long_options[option_index].name, optarg)) {
+			if (!config_apply(velo, long_options[option_index].name, optarg)) {
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -996,63 +996,63 @@ static struct nav_result *find_nav_result(struct nav_level *level, const char *l
 	return NULL;
 }
 
-void nav_push_level(struct tofi *tofi, struct nav_level *level)
+void nav_push_level(struct velo *velo, struct nav_level *level)
 {
-	wl_list_insert(&tofi->nav_stack, &level->link);
-	tofi->nav_current = level;
+	wl_list_insert(&velo->nav_stack, &level->link);
+	velo->nav_current = level;
 }
 
-static void nav_pop_level(struct tofi *tofi)
+static void nav_pop_level(struct velo *velo)
 {
-	if (!tofi->nav_current) {
+	if (!velo->nav_current) {
 		return;
 	}
 	
-	struct nav_level *current = tofi->nav_current;
+	struct nav_level *current = velo->nav_current;
 	
 	if (current->mode == SELECTION_FEEDBACK) {
 		feedback_history_save(current);
 		
-		if (tofi->feedback_process.active) {
-			kill(tofi->feedback_process.pid, SIGKILL);
-			close(tofi->feedback_process.fd);
-			tofi->feedback_process.active = false;
+		if (velo->feedback_process.active) {
+			kill(velo->feedback_process.pid, SIGKILL);
+			close(velo->feedback_process.fd);
+			velo->feedback_process.active = false;
 		}
 	}
 	
 	wl_list_remove(&current->link);
 	
-	if (wl_list_empty(&tofi->nav_stack)) {
-		tofi->nav_current = NULL;
+	if (wl_list_empty(&velo->nav_stack)) {
+		velo->nav_current = NULL;
 	} else {
-		tofi->nav_current = wl_container_of(tofi->nav_stack.next, tofi->nav_current, link);
+		velo->nav_current = wl_container_of(velo->nav_stack.next, velo->nav_current, link);
 	}
 	
 	nav_level_destroy(current);
 }
 
-void update_view_state_from_level(struct tofi *tofi, struct nav_level *level)
+void update_view_state_from_level(struct velo *velo, struct nav_level *level)
 {
-	string_ref_vec_destroy(&tofi->view_state.results);
-	tofi->view_state.results = string_ref_vec_create();
+	string_ref_vec_destroy(&velo->view_state.results);
+	velo->view_state.results = string_ref_vec_create();
 	
 	struct nav_result *res;
 	wl_list_for_each(res, &level->results, link) {
-		string_ref_vec_add(&tofi->view_state.results, res->label);
+		string_ref_vec_add(&velo->view_state.results, res->label);
 	}
-	tofi->view_state.selection = level->selection;
+	velo->view_state.selection = level->selection;
 	if (level->display_prompt[0]) {
-		snprintf(tofi->view_state.prompt, VIEW_MAX_PROMPT, "%s", level->display_prompt);
+		snprintf(velo->view_state.prompt, VIEW_MAX_PROMPT, "%s", level->display_prompt);
 	}
 }
 
 static void feedback_history_load(struct nav_level *level);
-static void update_entry_from_feedback_level(struct tofi *tofi, struct nav_level *level);
+static void update_entry_from_feedback_level(struct velo *velo, struct nav_level *level);
 static void execute_command(const char *template, struct value_dict *dict);
 
-bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_dict *dict)
+bool navigate_to_plugin(struct velo *velo, struct plugin *target, struct value_dict *dict)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	switch (target->type) {
 	case PLUGIN_LIST: {
@@ -1063,8 +1063,8 @@ bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_d
 		if (target->context_name[0]) {
 			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
 		}
-		nav_push_level(tofi, new_level);
-		update_view_state_from_level(tofi, new_level);
+		nav_push_level(velo, new_level);
+		update_view_state_from_level(velo, new_level);
 		break;
 	}
 	case PLUGIN_SELECT: {
@@ -1086,8 +1086,8 @@ bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_d
 		if (target->context_name[0]) {
 			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
 		}
-		nav_push_level(tofi, new_level);
-		update_view_state_from_level(tofi, new_level);
+		nav_push_level(velo, new_level);
+		update_view_state_from_level(velo, new_level);
 		break;
 	}
 	case PLUGIN_INPUT: {
@@ -1104,8 +1104,8 @@ bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_d
 		} else if (target->prompt[0]) {
 			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s", target->prompt);
 		}
-		nav_push_level(tofi, new_level);
-		update_view_state_from_level(tofi, new_level);
+		nav_push_level(velo, new_level);
+		update_view_state_from_level(velo, new_level);
 		state->sensitive = target->sensitive;
 		break;
 	}
@@ -1127,14 +1127,14 @@ bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_d
 		}
 		wl_list_init(&new_level->results);
 		feedback_history_load(new_level);
-		nav_push_level(tofi, new_level);
-		update_entry_from_feedback_level(tofi, new_level);
+		nav_push_level(velo, new_level);
+		update_entry_from_feedback_level(velo, new_level);
 		break;
 	}
 	case PLUGIN_EXEC: {
 		execute_command(target->template, dict);
 		dict_destroy(dict);
-		tofi->closed = true;
+		velo->closed = true;
 		return true;
 	}
 	}
@@ -1146,11 +1146,11 @@ bool navigate_to_plugin(struct tofi *tofi, struct plugin *target, struct value_d
 	state->cursor_position = 0;
 	state->selection = 0;
 	state->first_result = 0;
-	tofi->window.surface.redraw = true;
+	velo->window.surface.redraw = true;
 	return false;
 }
 
-#define FEEDBACK_HISTORY_DIR "/.config/hypr-tofi/history/"
+#define FEEDBACK_HISTORY_DIR "/.config/velo/history/"
 
 static void feedback_history_path(char *buf, size_t size, const char *name)
 {
@@ -1312,25 +1312,25 @@ void feedback_history_save(struct nav_level *level)
 	fclose(fp);
 }
 
-static void update_entry_from_feedback_level(struct tofi *tofi, struct nav_level *level)
+static void update_entry_from_feedback_level(struct velo *velo, struct nav_level *level)
 {
-	string_ref_vec_destroy(&tofi->view_state.results);
-	tofi->view_state.results = string_ref_vec_create();
+	string_ref_vec_destroy(&velo->view_state.results);
+	velo->view_state.results = string_ref_vec_create();
 	
 	struct feedback_entry *fe;
 	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&tofi->view_state.results, fe->content);
+		string_ref_vec_add(&velo->view_state.results, fe->content);
 	}
-	tofi->view_state.selection = 0;
-	tofi->view_state.first_result = 0;
+	velo->view_state.selection = 0;
+	velo->view_state.first_result = 0;
 	if (level->display_prompt[0]) {
-		snprintf(tofi->view_state.prompt, VIEW_MAX_PROMPT, "%s", level->display_prompt);
+		snprintf(velo->view_state.prompt, VIEW_MAX_PROMPT, "%s", level->display_prompt);
 	}
 }
 
-static void feedback_spawn_process(struct tofi *tofi, struct nav_level *level)
+static void feedback_spawn_process(struct velo *velo, struct nav_level *level)
 {
-	if (tofi->feedback_process.active) {
+	if (velo->feedback_process.active) {
 		return;
 	}
 	
@@ -1377,11 +1377,11 @@ static void feedback_spawn_process(struct tofi *tofi, struct nav_level *level)
 		return;
 	}
 	
-	tofi->feedback_process.pid = pid;
-	tofi->feedback_process.fd = pipefd[0];
-	tofi->feedback_process.start_time = gettime_ms();
-	tofi->feedback_process.active = true;
-	tofi->feedback_process.loading_frame = 0;
+	velo->feedback_process.pid = pid;
+	velo->feedback_process.fd = pipefd[0];
+	velo->feedback_process.start_time = gettime_ms();
+	velo->feedback_process.active = true;
+	velo->feedback_process.loading_frame = 0;
 	level->feedback_loading = true;
 	
 	if (level->show_input && level->display_input[0]) {
@@ -1407,18 +1407,18 @@ static void feedback_spawn_process(struct tofi *tofi, struct nav_level *level)
 	level->input_buffer[0] = '\0';
 	level->input_length = 0;
 	
-	tofi->view_state.input_utf32_length = 0;
-	tofi->view_state.input_utf8_length = 0;
-	tofi->view_state.input_utf8[0] = '\0';
-	tofi->view_state.cursor_position = 0;
+	velo->view_state.input_utf32_length = 0;
+	velo->view_state.input_utf8_length = 0;
+	velo->view_state.input_utf8[0] = '\0';
+	velo->view_state.cursor_position = 0;
 	
-	string_ref_vec_destroy(&tofi->view_state.results);
-	tofi->view_state.results = string_ref_vec_create();
+	string_ref_vec_destroy(&velo->view_state.results);
+	velo->view_state.results = string_ref_vec_create();
 	struct feedback_entry *fe;
 	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&tofi->view_state.results, fe->content);
+		string_ref_vec_add(&velo->view_state.results, fe->content);
 	}
-	tofi->window.surface.redraw = true;
+	velo->window.surface.redraw = true;
 }
 
 #define FEEDBACK_TIMEOUT_MS (3 * 60 * 1000)
@@ -1431,11 +1431,11 @@ static bool is_loading_indicator(const char *content)
 	        strcmp(content, "...") == 0);
 }
 
-static void feedback_process_complete(struct tofi *tofi)
+static void feedback_process_complete(struct velo *velo)
 {
-	struct nav_level *level = tofi->nav_current;
+	struct nav_level *level = velo->nav_current;
 	if (!level || level->mode != SELECTION_FEEDBACK) {
-		tofi->feedback_process.active = false;
+		velo->feedback_process.active = false;
 		return;
 	}
 	
@@ -1454,7 +1454,7 @@ static void feedback_process_complete(struct tofi *tofi)
 	result[0] = '\0';
 	
 	while (total < (ssize_t)sizeof(result) - 1) {
-		ssize_t bytes = read(tofi->feedback_process.fd, 
+		ssize_t bytes = read(velo->feedback_process.fd, 
 		                     result + total, 
 		                     sizeof(result) - 1 - total);
 		if (bytes <= 0) break;
@@ -1462,12 +1462,12 @@ static void feedback_process_complete(struct tofi *tofi)
 	}
 	result[total] = '\0';
 	
-	close(tofi->feedback_process.fd);
+	close(velo->feedback_process.fd);
 	
 	int status;
-	waitpid(tofi->feedback_process.pid, &status, 0);
+	waitpid(velo->feedback_process.pid, &status, 0);
 	
-	tofi->feedback_process.active = false;
+	velo->feedback_process.active = false;
 	level->feedback_loading = false;
 	
 	while (total > 0 && (result[total-1] == '\n' || result[total-1] == '\r')) {
@@ -1506,23 +1506,23 @@ static void feedback_process_complete(struct tofi *tofi)
 		feedback_entry_destroy(last);
 	}
 	
-	update_entry_from_feedback_level(tofi, level);
-	tofi->window.surface.redraw = true;
+	update_entry_from_feedback_level(velo, level);
+	velo->window.surface.redraw = true;
 }
 
-static void feedback_process_check_timeout(struct tofi *tofi)
+static void feedback_process_check_timeout(struct velo *velo)
 {
-	if (!tofi->feedback_process.active) {
+	if (!velo->feedback_process.active) {
 		return;
 	}
 	
-	uint32_t elapsed = gettime_ms() - tofi->feedback_process.start_time;
+	uint32_t elapsed = gettime_ms() - velo->feedback_process.start_time;
 	if (elapsed >= FEEDBACK_TIMEOUT_MS) {
 		log_error("Feedback process timeout, killing\n");
-		kill(tofi->feedback_process.pid, SIGKILL);
-		close(tofi->feedback_process.fd);
+		kill(velo->feedback_process.pid, SIGKILL);
+		close(velo->feedback_process.fd);
 		
-		struct nav_level *level = tofi->nav_current;
+		struct nav_level *level = velo->nav_current;
 		if (level && level->mode == SELECTION_FEEDBACK) {
 			level->feedback_loading = false;
 			
@@ -1539,21 +1539,21 @@ static void feedback_process_check_timeout(struct tofi *tofi)
 			strncpy(error_entry->content, "Error: timeout", NAV_VALUE_MAX - 1);
 			wl_list_insert(&level->results, &error_entry->link);
 			
-			update_entry_from_feedback_level(tofi, level);
-			tofi->window.surface.redraw = true;
+			update_entry_from_feedback_level(velo, level);
+			velo->window.surface.redraw = true;
 		}
 		
-		tofi->feedback_process.active = false;
+		velo->feedback_process.active = false;
 	}
 }
 
-static void feedback_update_loading_animation(struct tofi *tofi)
+static void feedback_update_loading_animation(struct velo *velo)
 {
-	if (!tofi->feedback_process.active) {
+	if (!velo->feedback_process.active) {
 		return;
 	}
 	
-	struct nav_level *level = tofi->nav_current;
+	struct nav_level *level = velo->nav_current;
 	if (!level || level->mode != SELECTION_FEEDBACK) {
 		return;
 	}
@@ -1567,17 +1567,17 @@ static void feedback_update_loading_animation(struct tofi *tofi)
 		return;
 	}
 	
-	tofi->feedback_process.loading_frame = (tofi->feedback_process.loading_frame + 1) % 3;
+	velo->feedback_process.loading_frame = (velo->feedback_process.loading_frame + 1) % 3;
 	const char *frames[] = {".", "..", "..."};
-	strcpy(first->content, frames[tofi->feedback_process.loading_frame]);
+	strcpy(first->content, frames[velo->feedback_process.loading_frame]);
 	
-	string_ref_vec_destroy(&tofi->view_state.results);
-	tofi->view_state.results = string_ref_vec_create();
+	string_ref_vec_destroy(&velo->view_state.results);
+	velo->view_state.results = string_ref_vec_create();
 	struct feedback_entry *fe;
 	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&tofi->view_state.results, fe->content);
+		string_ref_vec_add(&velo->view_state.results, fe->content);
 	}
-	tofi->window.surface.redraw = true;
+	velo->window.surface.redraw = true;
 }
 
 static void execute_command(const char *template, struct value_dict *dict)
@@ -1605,13 +1605,13 @@ static void execute_command(const char *template, struct value_dict *dict)
 	free(resolved);
 }
 
-static bool do_submit(struct tofi *tofi)
+static bool do_submit(struct velo *velo)
 {
-	struct nav_level *level = tofi->nav_current;
+	struct nav_level *level = velo->nav_current;
 
 	if (level && level->mode == SELECTION_INPUT) {
-		if (tofi->input_mode) {
-			snprintf(tofi->pipe_output, N_ELEM(tofi->pipe_output), "%s", level->input_buffer);
+		if (velo->input_mode) {
+			snprintf(velo->pipe_output, N_ELEM(velo->pipe_output), "%s", level->input_buffer);
 			return true;
 		}
 		struct value_dict *dict = dict_copy(level->dict);
@@ -1619,13 +1619,13 @@ static bool do_submit(struct tofi *tofi)
 
 		if (level->next_plugin[0]) {
 			struct plugin *next_p = plugin_get(level->next_plugin);
-			if (next_p) return navigate_to_plugin(tofi, next_p, dict);
+			if (next_p) return navigate_to_plugin(velo, next_p, dict);
 		}
 
 		if (level->return_to_parent) {
-			nav_pop_level(tofi);
-			if (tofi->nav_current) {
-				struct nav_level *parent = tofi->nav_current;
+			nav_pop_level(velo);
+			if (velo->nav_current) {
+				struct nav_level *parent = velo->nav_current;
 				dict_destroy(parent->dict);
 				parent->dict = dict;
 
@@ -1634,12 +1634,12 @@ static bool do_submit(struct tofi *tofi)
 					return true;
 				}
 
-				update_view_state_from_level(tofi, parent);
-				tofi->view_state.input_utf32_length = 0;
-				tofi->view_state.input_utf8_length = 0;
-				tofi->view_state.input_utf8[0] = '\0';
-				tofi->view_state.cursor_position = 0;
-				tofi->window.surface.redraw = true;
+				update_view_state_from_level(velo, parent);
+				velo->view_state.input_utf32_length = 0;
+				velo->view_state.input_utf8_length = 0;
+				velo->view_state.input_utf8[0] = '\0';
+				velo->view_state.cursor_position = 0;
+				velo->window.surface.redraw = true;
 			}
 			return false;
 		}
@@ -1653,26 +1653,26 @@ static bool do_submit(struct tofi *tofi)
 		if (!level->input_buffer[0]) {
 			return false;
 		}
-		feedback_spawn_process(tofi, level);
+		feedback_spawn_process(velo, level);
 		return false;
 	}
 
-	uint32_t selection = tofi->view_state.selection + tofi->view_state.first_result;
+	uint32_t selection = velo->view_state.selection + velo->view_state.first_result;
 
-	if (tofi->view_state.results.count == 0) {
+	if (velo->view_state.results.count == 0) {
 		return false;
 	}
 
-	char *res = tofi->view_state.results.buf[selection].string;
+	char *res = velo->view_state.results.buf[selection].string;
 
 	struct nav_result *nav_res = NULL;
 	if (level) {
 		nav_res = find_nav_result(level, res);
 	}
 
-	if (!level && !wl_list_empty(&tofi->base_results)) {
+	if (!level && !wl_list_empty(&velo->base_results)) {
 		struct nav_result *r;
-		wl_list_for_each(r, &tofi->base_results, link) {
+		wl_list_for_each(r, &velo->base_results, link) {
 			if (strcmp(res, r->label) == 0) {
 				nav_res = r;
 				break;
@@ -1686,8 +1686,8 @@ static bool do_submit(struct tofi *tofi)
 
 		switch (action->selection_type) {
 		case SELECTION_SELF:
-			if (tofi->picker_mode) {
-				snprintf(tofi->pipe_output, N_ELEM(tofi->pipe_output), "%s", nav_res->value);
+			if (velo->picker_mode) {
+				snprintf(velo->pipe_output, N_ELEM(velo->pipe_output), "%s", nav_res->value);
 				dict_destroy(dict);
 				return true;
 			}
@@ -1697,13 +1697,13 @@ static bool do_submit(struct tofi *tofi)
 
 			if (level && level->next_plugin[0]) {
 				struct plugin *next_p = plugin_get(level->next_plugin);
-				if (next_p) return navigate_to_plugin(tofi, next_p, dict);
+				if (next_p) return navigate_to_plugin(velo, next_p, dict);
 			}
 
 			if (level && level->return_to_parent) {
-				nav_pop_level(tofi);
-				if (tofi->nav_current) {
-					struct nav_level *parent = tofi->nav_current;
+				nav_pop_level(velo);
+				if (velo->nav_current) {
+					struct nav_level *parent = velo->nav_current;
 					dict_destroy(parent->dict);
 					parent->dict = dict;
 
@@ -1712,12 +1712,12 @@ static bool do_submit(struct tofi *tofi)
 						return true;
 					}
 
-					update_view_state_from_level(tofi, parent);
-					tofi->view_state.input_utf32_length = 0;
-					tofi->view_state.input_utf8_length = 0;
-					tofi->view_state.input_utf8[0] = '\0';
-					tofi->view_state.cursor_position = 0;
-					tofi->window.surface.redraw = true;
+					update_view_state_from_level(velo, parent);
+					velo->view_state.input_utf32_length = 0;
+					velo->view_state.input_utf8_length = 0;
+					velo->view_state.input_utf8[0] = '\0';
+					velo->view_state.cursor_position = 0;
+					velo->window.surface.redraw = true;
 				}
 				return false;
 			}
@@ -1733,7 +1733,7 @@ static bool do_submit(struct tofi *tofi)
 				dict_destroy(dict);
 				return false;
 			}
-			return navigate_to_plugin(tofi, target_plugin, dict);
+			return navigate_to_plugin(velo, target_plugin, dict);
 		}
 
 		default:
@@ -1745,9 +1745,9 @@ static bool do_submit(struct tofi *tofi)
 	return false;
 }
 
-static void read_clipboard(struct tofi *tofi)
+static void read_clipboard(struct velo *velo)
 {
-	struct view_state *state = &tofi->view_state;
+	struct view_state *state = &velo->view_state;
 
 	/* Make a copy of any text after the cursor. */
 	uint32_t *end_text = NULL;
@@ -1769,7 +1769,7 @@ static void read_clipboard(struct tofi *tofi)
 			 * Read input 1 byte at a time. This is slow, but easy,
 			 * and speed of pasting shouldn't really matter.
 			 */
-			int res = read(tofi->clipboard.fd, &buffer[i], 1);
+			int res = read(velo->clipboard.fd, &buffer[i], 1);
 			if (res == 0) {
 				eof = true;
 				break;
@@ -1785,12 +1785,12 @@ static void read_clipboard(struct tofi *tofi)
 					 * a character, but we should hit the
 					 * input length limit long before that.
 					 */
-					input_refresh_results(tofi);
-					tofi->window.surface.redraw = true;
+					input_refresh_results(velo);
+					velo->window.surface.redraw = true;
 					return;
 				}
 				log_error("Failed to read clipboard: %s\n", strerror(errno));
-				clipboard_finish_paste(&tofi->clipboard);
+				clipboard_finish_paste(&velo->clipboard);
 				return;
 			}
 			uint32_t unichar = utf8_to_utf32_validate(buffer);
@@ -1826,37 +1826,37 @@ static void read_clipboard(struct tofi *tofi)
 	}
 	state->input_utf32[MIN(state->input_utf32_length, N_ELEM(state->input_utf32) - 1)] = U'\0';
 
-	clipboard_finish_paste(&tofi->clipboard);
+	clipboard_finish_paste(&velo->clipboard);
 
-	input_refresh_results(tofi);
-	tofi->window.surface.redraw = true;
+	input_refresh_results(velo);
+	velo->window.surface.redraw = true;
 }
 
 /*
  * Calculate the ideal window height for autosize mode.
  * Sizes to exact row boundaries — no partial-row gap at the bottom.
  */
-static uint32_t autosize_calc_height(struct tofi *tofi)
+static uint32_t autosize_calc_height(struct velo *velo)
 {
-	int32_t bottom = tofi->view_theme.padding_bottom
-		+ tofi->view_theme.border_width
-		+ (int32_t)(ceil(MAX((double)tofi->view_theme.corner_radius
-			- tofi->view_theme.border_width, 0) * (1.0 - 1.0 / M_SQRT2)));
+	int32_t bottom = velo->view_theme.padding_bottom
+		+ velo->view_theme.border_width
+		+ (int32_t)(ceil(MAX((double)velo->view_theme.corner_radius
+			- velo->view_theme.border_width, 0) * (1.0 - 1.0 / M_SQRT2)));
 
-	int32_t overhead = tofi->view_layout.result_start_y + bottom;
-	int32_t row_h = tofi->view_layout.result_row_height;
+	int32_t overhead = velo->view_layout.result_start_y + bottom;
+	int32_t row_h = velo->view_layout.result_row_height;
 
-	if (tofi->view_state.results.count == 0 || row_h <= 0) {
+	if (velo->view_state.results.count == 0 || row_h <= 0) {
 		return MAX(1, overhead);
 	}
 
-	int32_t available = (int32_t)tofi->max_window_height - overhead;
+	int32_t available = (int32_t)velo->max_window_height - overhead;
 	if (available <= 0) {
 		return MAX(1, overhead);
 	}
 
 	uint32_t rows_that_fit = available / row_h;
-	uint32_t rows = MIN(rows_that_fit, tofi->view_state.results.count);
+	uint32_t rows = MIN(rows_that_fit, velo->view_state.results.count);
 
 	return overhead + rows * row_h;
 }
@@ -1872,7 +1872,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Call log_debug to initialise the timers we use for perf checking. */
-	log_debug("This is tofi.\n");
+	log_debug("This is velo.\n");
 
 	/*
 	 * Set the locale to the user's default, so we can deal with non-ASCII
@@ -1881,7 +1881,7 @@ int main(int argc, char *argv[])
 	setlocale(LC_ALL, "");
 
 	/* Default options. */
-	struct tofi tofi = {
+	struct velo velo = {
 		.window = {
 			.scale = 1,
 			.width = 1280,
@@ -1909,17 +1909,17 @@ int main(int argc, char *argv[])
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
 		.use_scale = true,
 	};
-	wl_list_init(&tofi.output_list);
-	wl_list_init(&tofi.nav_stack);
-	tofi.nav_current = NULL;
-	tofi.base_dict = dict_create();
-	wl_list_init(&tofi.base_results);
+	wl_list_init(&velo.output_list);
+	wl_list_init(&velo.nav_stack);
+	velo.nav_current = NULL;
+	velo.base_dict = dict_create();
+	wl_list_init(&velo.base_results);
 	
 	plugin_init();
 	const char *home = getenv("HOME");
 	if (home) {
 		char plugin_dir[512];
-		snprintf(plugin_dir, sizeof(plugin_dir), "%s/.config/hypr-tofi/plugins", home);
+		snprintf(plugin_dir, sizeof(plugin_dir), "%s/.config/velo/plugins", home);
 		log_debug("Loading plugins from: %s\n", plugin_dir);
 		plugin_load_directory(plugin_dir);
 	}
@@ -1927,7 +1927,7 @@ int main(int argc, char *argv[])
 	
 	const char *entry_plugin = NULL;
 	const char *plugin_list = NULL;
-	parse_args(&tofi, argc, argv, &entry_plugin, &plugin_list);
+	parse_args(&velo, argc, argv, &entry_plugin, &plugin_list);
 	log_debug("Config done.\n");
 
 	/*
@@ -1937,25 +1937,25 @@ int main(int argc, char *argv[])
 	 * to Wayland.
 	 */
 	
-	snprintf(tofi.base_prompt, MAX_PROMPT_LENGTH, "%s", tofi.view_state.prompt);
+	snprintf(velo.base_prompt, MAX_PROMPT_LENGTH, "%s", velo.view_state.prompt);
 
 	log_debug("Connecting to Wayland display.\n");
-	tofi.wl_display = wl_display_connect(NULL);
-	if (tofi.wl_display == NULL) {
+	velo.wl_display = wl_display_connect(NULL);
+	if (velo.wl_display == NULL) {
 		log_error("Couldn't connect to Wayland display.\n");
 		exit(EXIT_FAILURE);
 	}
-	tofi.wl_registry = wl_display_get_registry(tofi.wl_display);
+	velo.wl_registry = wl_display_get_registry(velo.wl_display);
 	log_debug("Creating xkb context.\n");
-	tofi.xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	if (tofi.xkb_context == NULL) {
+	velo.xkb_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	if (velo.xkb_context == NULL) {
 		log_error("Couldn't create an XKB context.\n");
 		exit(EXIT_FAILURE);
 	}
 	wl_registry_add_listener(
-			tofi.wl_registry,
+			velo.wl_registry,
 			&wl_registry_listener,
-			&tofi);
+			&velo);
 
 	/*
 	 * After this first roundtrip, the only thing that should have happened
@@ -1964,7 +1964,7 @@ int main(int argc, char *argv[])
 	 */
 	log_debug("First roundtrip start.\n");
 	log_indent();
-	wl_display_roundtrip(tofi.wl_display);
+	wl_display_roundtrip(velo.wl_display);
 	log_unindent();
 	log_debug("First roundtrip done.\n");
 
@@ -1975,7 +1975,7 @@ int main(int argc, char *argv[])
 	 */
 	log_debug("Second roundtrip start.\n");
 	log_indent();
-	wl_display_roundtrip(tofi.wl_display);
+	wl_display_roundtrip(velo.wl_display);
 	log_unindent();
 	log_debug("Second roundtrip done.\n");
 
@@ -1994,9 +1994,9 @@ int main(int argc, char *argv[])
 		 * a surface and displaying it.
 		 *
 		 * Here we set up a single pixel surface, perform the required
-		 * two roundtrips, then tear it down. tofi.default_output
+		 * two roundtrips, then tear it down. velo.default_output
 		 * should then contain the output our surface was assigned to,
-		 * and tofi.window.fractional_scale should have the scale
+		 * and velo.window.fractional_scale should have the scale
 		 * factor.
 		 */
 		log_debug("Determining output.\n");
@@ -2006,22 +2006,22 @@ int main(int argc, char *argv[])
 			.height = 1
 		};
 		surface.wl_surface =
-			wl_compositor_create_surface(tofi.wl_compositor);
+			wl_compositor_create_surface(velo.wl_compositor);
 		wl_surface_add_listener(
 				surface.wl_surface,
 				&dummy_surface_listener,
-				&tofi);
+				&velo);
 
 		struct wp_fractional_scale_v1 *wp_fractional_scale = NULL;
-		if (tofi.wp_fractional_scale_manager != NULL) {
+		if (velo.wp_fractional_scale_manager != NULL) {
 			wp_fractional_scale =
 				wp_fractional_scale_manager_v1_get_fractional_scale(
-						tofi.wp_fractional_scale_manager,
+						velo.wp_fractional_scale_manager,
 						surface.wl_surface);
 			wp_fractional_scale_v1_add_listener(
 					wp_fractional_scale,
 					&dummy_fractional_scale_listener,
-					&tofi);
+					&velo);
 		}
 
 		/*
@@ -2029,10 +2029,10 @@ int main(int argc, char *argv[])
 		 * can determine the correct fractional scale.
 		 */
 		struct wl_output *wl_output = NULL;
-		if (tofi.target_output_name[0] != '\0') {
+		if (velo.target_output_name[0] != '\0') {
 			struct output_list_element *el;
-			wl_list_for_each(el, &tofi.output_list, link) {
-				if (!strcmp(tofi.target_output_name, el->name)) {
+			wl_list_for_each(el, &velo.output_list, link) {
+				if (!strcmp(velo.target_output_name, el->name)) {
 					wl_output = el->wl_output;
 					break;
 				}
@@ -2041,7 +2041,7 @@ int main(int argc, char *argv[])
 
 		struct zwlr_layer_surface_v1 *zwlr_layer_surface =
 			zwlr_layer_shell_v1_get_layer_surface(
-					tofi.zwlr_layer_shell,
+					velo.zwlr_layer_shell,
 					surface.wl_surface,
 					wl_output,
 					ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND,
@@ -2057,7 +2057,7 @@ int main(int argc, char *argv[])
 		zwlr_layer_surface_v1_add_listener(
 				zwlr_layer_surface,
 				&dummy_layer_surface_listener,
-				&tofi);
+				&velo);
 		zwlr_layer_surface_v1_set_size(
 				zwlr_layer_surface,
 				1,
@@ -2065,18 +2065,18 @@ int main(int argc, char *argv[])
 		wl_surface_commit(surface.wl_surface);
 		log_debug("First dummy roundtrip start.\n");
 		log_indent();
-		wl_display_roundtrip(tofi.wl_display);
+		wl_display_roundtrip(velo.wl_display);
 		log_unindent();
 		log_debug("First dummy roundtrip done.\n");
 		log_debug("Initialising dummy surface.\n");
 		log_indent();
-		surface_init(&surface, tofi.wl_shm);
+		surface_init(&surface, velo.wl_shm);
 		surface_draw(&surface);
 		log_unindent();
 		log_debug("Dummy surface initialised.\n");
 		log_debug("Second dummy roundtrip start.\n");
 		log_indent();
-		wl_display_roundtrip(tofi.wl_display);
+		wl_display_roundtrip(velo.wl_display);
 		log_unindent();
 		log_debug("Second dummy roundtrip done.\n");
 		surface_destroy(&surface);
@@ -2093,23 +2093,23 @@ int main(int argc, char *argv[])
 		 */
 		bool found_target = false;
 		struct output_list_element *head;
-		head = wl_container_of(tofi.output_list.next, head, link);
+		head = wl_container_of(velo.output_list.next, head, link);
 
 		struct output_list_element *el;
 		struct output_list_element *tmp;
-		if (tofi.target_output_name[0] != 0) {
-			log_debug("Looking for output %s.\n", tofi.target_output_name);
-		} else if (tofi.default_output != NULL) {
+		if (velo.target_output_name[0] != 0) {
+			log_debug("Looking for output %s.\n", velo.target_output_name);
+		} else if (velo.default_output != NULL) {
 			snprintf(
-					tofi.target_output_name,
-					N_ELEM(tofi.target_output_name),
+					velo.target_output_name,
+					N_ELEM(velo.target_output_name),
 					"%s",
-					tofi.default_output->name);
+					velo.default_output->name);
 			/* We don't need this anymore. */
-			tofi.default_output = NULL;
+			velo.default_output = NULL;
 		}
-		wl_list_for_each_reverse_safe(el, tmp, &tofi.output_list, link) {
-			if (!strcmp(tofi.target_output_name, el->name)) {
+		wl_list_for_each_reverse_safe(el, tmp, &velo.output_list, link) {
+			if (!strcmp(velo.target_output_name, el->name)) {
 				found_target = true;
 				continue;
 			}
@@ -2130,7 +2130,7 @@ int main(int argc, char *argv[])
 		 * The only output left should either be the one we want, or
 		 * the first that was advertised.
 		 */
-		el = wl_container_of(tofi.output_list.next, el, link);
+		el = wl_container_of(velo.output_list.next, el, link);
 
 		/*
 		 * If we're rotated 90 degrees, we need to swap width and
@@ -2141,14 +2141,14 @@ int main(int argc, char *argv[])
 			case WL_OUTPUT_TRANSFORM_270:
 			case WL_OUTPUT_TRANSFORM_FLIPPED_90:
 			case WL_OUTPUT_TRANSFORM_FLIPPED_270:
-				tofi.output_width = el->height;
-				tofi.output_height = el->width;
+				velo.output_width = el->height;
+				velo.output_height = el->width;
 				break;
 			default:
-				tofi.output_width = el->width;
-				tofi.output_height = el->height;
+				velo.output_width = el->width;
+				velo.output_height = el->height;
 		}
-		tofi.window.scale = el->scale;
+		velo.window.scale = el->scale;
 		log_unindent();
 		log_debug("Selected output %s.\n", el->name);
 	}
@@ -2157,21 +2157,21 @@ int main(int argc, char *argv[])
 	 * We can now scale values and calculate any percentages, as we know
 	 * the output size and scale.
 	 */
-	config_fixup_values(&tofi);
+	config_fixup_values(&velo);
 
-	if (tofi.autosize) {
-		tofi.max_window_height = tofi.window.height;
+	if (velo.autosize) {
+		velo.max_window_height = velo.window.height;
 
-		tofi.anchor = (tofi.anchor | ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)
+		velo.anchor = (velo.anchor | ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP)
 			& ~ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
 
-		int32_t available = tofi.output_height - tofi.window.margin_top - tofi.window.margin_bottom;
-		tofi.window.margin_top = tofi.window.margin_top
-			+ (available - (int32_t)tofi.window.height) / 2;
-		tofi.window.margin_bottom = 0;
+		int32_t available = velo.output_height - velo.window.margin_top - velo.window.margin_bottom;
+		velo.window.margin_top = velo.window.margin_top
+			+ (available - (int32_t)velo.window.height) / 2;
+		velo.window.margin_bottom = 0;
 
 		log_debug("Autosize: anchor=%u margin_top=%d output_h=%d max_h=%u\n",
-			tofi.anchor, tofi.window.margin_top, tofi.output_height, tofi.max_window_height);
+			velo.anchor, velo.window.margin_top, velo.output_height, velo.max_window_height);
 	}
 
 	log_debug("Loading plugin results.\n");
@@ -2179,8 +2179,8 @@ int main(int argc, char *argv[])
 	
 	struct string_ref_vec commands = string_ref_vec_create();
 	
-	if (tofi.picker_mode) {
-		wl_list_init(&tofi.base_results);
+	if (velo.picker_mode) {
+		wl_list_init(&velo.base_results);
 		char *line = NULL;
 		size_t cap = 0;
 		ssize_t len;
@@ -2196,15 +2196,15 @@ int main(int argc, char *argv[])
 			strncpy(res->value, line, NAV_VALUE_MAX - 1);
 			res->action.selection_type = SELECTION_SELF;
 			res->action.execution_type = EXECUTION_EXEC;
-			wl_list_insert(tofi.base_results.prev, &res->link);
+			wl_list_insert(velo.base_results.prev, &res->link);
 		}
 		free(line);
-		if (wl_list_empty(&tofi.base_results)) {
+		if (wl_list_empty(&velo.base_results)) {
 			log_debug("Picker mode: empty stdin, exiting.\n");
 			return EXIT_FAILURE;
 		}
 	} else if (plugin_list) {
-		wl_list_init(&tofi.base_results);
+		wl_list_init(&velo.base_results);
 		char *copy = xstrdup(plugin_list);
 		char *saveptr = NULL;
 		char *token = strtok_r(copy, ",", &saveptr);
@@ -2220,17 +2220,17 @@ int main(int argc, char *argv[])
 				res->action.selection_type = SELECTION_PLUGIN;
 				res->action.execution_type = EXECUTION_EXEC;
 				strncpy(res->action.plugin_ref, p->name, NAV_NAME_MAX - 1);
-				wl_list_insert(tofi.base_results.prev, &res->link);
+				wl_list_insert(velo.base_results.prev, &res->link);
 			}
 			token = strtok_r(NULL, ",", &saveptr);
 		}
 		free(copy);
 	} else {
-		plugin_populate_results(&tofi.base_results);
+		plugin_populate_results(&velo.base_results);
 	}
 	int plugin_result_count = 0;
 	struct nav_result *pr;
-	wl_list_for_each(pr, &tofi.base_results, link) {
+	wl_list_for_each(pr, &velo.base_results, link) {
 		plugin_result_count++;
 		struct plugin *plugin = plugin_get(pr->source_plugin);
 		const char *prefix = plugin ? plugin->display_prefix : "";
@@ -2246,32 +2246,32 @@ int main(int argc, char *argv[])
 		strncpy(pr->label, display, NAV_LABEL_MAX - 1);
 	}
 	
-	tofi.view_state.commands = commands;
+	velo.view_state.commands = commands;
 	
 	log_debug("Loaded %d plugin results.\n", plugin_result_count);
-	log_debug("Commands count: %zu\n", tofi.view_state.commands.count);
+	log_debug("Commands count: %zu\n", velo.view_state.commands.count);
 	log_unindent();
 	log_debug("Plugin list generated.\n");
-	tofi.view_state.results = string_ref_vec_copy(&tofi.view_state.commands);
-	snprintf(tofi.view_state.prompt, VIEW_MAX_PROMPT, "%s", tofi.base_prompt);
+	velo.view_state.results = string_ref_vec_copy(&velo.view_state.commands);
+	snprintf(velo.view_state.prompt, VIEW_MAX_PROMPT, "%s", velo.base_prompt);
 
 	if (entry_plugin) {
 		struct plugin *p = plugin_get(entry_plugin);
 		if (p) {
-			tofi.entry_only = true;
-			navigate_to_plugin(&tofi, p, dict_create());
+			velo.entry_only = true;
+			navigate_to_plugin(&velo, p, dict_create());
 		}
 	}
 
-	if (tofi.input_mode) {
+	if (velo.input_mode) {
 		struct nav_level *level = nav_level_create(SELECTION_INPUT, dict_create());
-		level->sensitive = tofi.view_state.sensitive;
-		if (tofi.view_state.prompt[0]) {
-			snprintf(level->display_prompt, NAV_PROMPT_MAX, "%s", tofi.view_state.prompt);
+		level->sensitive = velo.view_state.sensitive;
+		if (velo.view_state.prompt[0]) {
+			snprintf(level->display_prompt, NAV_PROMPT_MAX, "%s", velo.view_state.prompt);
 		}
-		nav_push_level(&tofi, level);
-		update_view_state_from_level(&tofi, level);
-		tofi.view_state.sensitive = level->sensitive;
+		nav_push_level(&velo, level);
+		update_view_state_from_level(&velo, level);
+		velo.view_state.sensitive = level->sensitive;
 	}
 
 	/*
@@ -2279,13 +2279,13 @@ int main(int argc, char *argv[])
 	 * layer shell role.
 	 */
 	log_debug("Creating main window surface.\n");
-	tofi.window.surface.wl_surface =
-		wl_compositor_create_surface(tofi.wl_compositor);
+	velo.window.surface.wl_surface =
+		wl_compositor_create_surface(velo.wl_compositor);
 	wl_surface_add_listener(
-			tofi.window.surface.wl_surface,
+			velo.window.surface.wl_surface,
 			&wl_surface_listener,
-			&tofi);
-	if (tofi.window.width == 0 || tofi.window.height == 0) {
+			&velo);
+	if (velo.window.width == 0 || velo.window.height == 0) {
 		/*
 		 * Workaround for compatibility with legacy behaviour.
 		 *
@@ -2305,11 +2305,11 @@ int main(int argc, char *argv[])
 		 */
 		log_warning("Width or height set to 0, disabling fractional scaling support.\n");
 		log_warning("If your compositor supports the fractional scale protocol, percentages are preferred.\n");
-		tofi.window.fractional_scale = 0;
+		velo.window.fractional_scale = 0;
 		wl_surface_set_buffer_scale(
-				tofi.window.surface.wl_surface,
-				tofi.window.scale);
-	} else if (tofi.wp_viewporter == NULL) {
+				velo.window.surface.wl_surface,
+				velo.window.scale);
+	} else if (velo.wp_viewporter == NULL) {
 		/*
 		 * We also could be running on a Wayland compositor which
 		 * doesn't support wp_viewporter, in which case we need to use
@@ -2317,84 +2317,84 @@ int main(int argc, char *argv[])
 		 */
 		log_warning("Using an outdated compositor, "
 				"fractional scaling will not work properly.\n");
-		tofi.window.fractional_scale = 0;
+		velo.window.fractional_scale = 0;
 		wl_surface_set_buffer_scale(
-				tofi.window.surface.wl_surface,
-				tofi.window.scale);
+				velo.window.surface.wl_surface,
+				velo.window.scale);
 	}
 
 	/* Grab the first (and only remaining) output from our list. */
 	struct wl_output *wl_output;
 	{
 		struct output_list_element *el;
-		el = wl_container_of(tofi.output_list.next, el, link);
+		el = wl_container_of(velo.output_list.next, el, link);
 		wl_output = el->wl_output;
 	}
 
-	tofi.window.zwlr_layer_surface = zwlr_layer_shell_v1_get_layer_surface(
-			tofi.zwlr_layer_shell,
-			tofi.window.surface.wl_surface,
+	velo.window.zwlr_layer_surface = zwlr_layer_shell_v1_get_layer_surface(
+			velo.zwlr_layer_shell,
+			velo.window.surface.wl_surface,
 			wl_output,
 			ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 			"launcher");
 	zwlr_layer_surface_v1_set_keyboard_interactivity(
-			tofi.window.zwlr_layer_surface,
+			velo.window.zwlr_layer_surface,
 			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE);
 	zwlr_layer_surface_v1_add_listener(
-			tofi.window.zwlr_layer_surface,
+			velo.window.zwlr_layer_surface,
 			&zwlr_layer_surface_listener,
-			&tofi);
+			&velo);
 	zwlr_layer_surface_v1_set_anchor(
-			tofi.window.zwlr_layer_surface,
-			tofi.anchor);
+			velo.window.zwlr_layer_surface,
+			velo.anchor);
 	zwlr_layer_surface_v1_set_exclusive_zone(
-			tofi.window.zwlr_layer_surface,
+			velo.window.zwlr_layer_surface,
 			-1);
 	zwlr_layer_surface_v1_set_margin(
-			tofi.window.zwlr_layer_surface,
-			tofi.window.margin_top,
-			tofi.window.margin_right,
-			tofi.window.margin_bottom,
-			tofi.window.margin_left);
+			velo.window.zwlr_layer_surface,
+			velo.window.margin_top,
+			velo.window.margin_right,
+			velo.window.margin_bottom,
+			velo.window.margin_left);
 	/*
 	 * No matter whether we're scaling via Cairo or not, we're presenting a
 	 * scaled buffer to Wayland, so scale the window size here if we
 	 * haven't already done so.
 	 */
 	zwlr_layer_surface_v1_set_size(
-			tofi.window.zwlr_layer_surface,
-			tofi.window.width,
-			tofi.window.height);
+			velo.window.zwlr_layer_surface,
+			velo.window.width,
+			velo.window.height);
 
 	/*
 	 * Set up a viewport for our surface, necessary for fractional scaling.
 	 */
-	if (tofi.wp_viewporter != NULL) {
-		tofi.window.wp_viewport = wp_viewporter_get_viewport(
-				tofi.wp_viewporter,
-				tofi.window.surface.wl_surface);
-		if (tofi.window.width > 0 && tofi.window.height > 0) {
+	if (velo.wp_viewporter != NULL) {
+		velo.window.wp_viewport = wp_viewporter_get_viewport(
+				velo.wp_viewporter,
+				velo.window.surface.wl_surface);
+		if (velo.window.width > 0 && velo.window.height > 0) {
 			wp_viewport_set_destination(
-					tofi.window.wp_viewport,
-					tofi.window.width,
-					tofi.window.height);
+					velo.window.wp_viewport,
+					velo.window.width,
+					velo.window.height);
 		}
 	}
 
 	/* Commit the surface to finalise setup. */
-	wl_surface_commit(tofi.window.surface.wl_surface);
+	wl_surface_commit(velo.window.surface.wl_surface);
 
 	/*
 	 * Create a data device and setup a listener for data offers. This is
 	 * required for clipboard support.
 	 */
-	tofi.wl_data_device = wl_data_device_manager_get_data_device(
-			tofi.wl_data_device_manager,
-			tofi.wl_seat);
+	velo.wl_data_device = wl_data_device_manager_get_data_device(
+			velo.wl_data_device_manager,
+			velo.wl_seat);
 	wl_data_device_add_listener(
-			tofi.wl_data_device,
+			velo.wl_data_device,
 			&wl_data_device_listener,
-			&tofi.clipboard);
+			&velo.clipboard);
 
 	/*
 	 * Now that we've done all our Wayland-related setup, we do another
@@ -2403,7 +2403,7 @@ int main(int argc, char *argv[])
 	 */
 	log_debug("Third roundtrip start.\n");
 	log_indent();
-	wl_display_roundtrip(tofi.wl_display);
+	wl_display_roundtrip(velo.wl_display);
 	log_unindent();
 	log_debug("Third roundtrip done.\n");
 
@@ -2415,7 +2415,7 @@ int main(int argc, char *argv[])
 	 */
 	log_debug("Initialising window surface.\n");
 	log_indent();
-	surface_init(&tofi.window.surface, tofi.wl_shm);
+	surface_init(&velo.window.surface, velo.wl_shm);
 	log_unindent();
 	log_debug("Window surface initialised.\n");
 
@@ -2438,61 +2438,61 @@ int main(int argc, char *argv[])
 		 * ease.
 		 */
 		uint32_t scale = 120;
-		if (tofi.use_scale) {
-			if (tofi.window.fractional_scale != 0) {
-				scale = tofi.window.fractional_scale;
+		if (velo.use_scale) {
+			if (velo.window.fractional_scale != 0) {
+				scale = velo.window.fractional_scale;
 			} else {
-				scale = tofi.window.scale * 120;
+				scale = velo.window.scale * 120;
 			}
 		}
 		
-		tofi.renderer = renderer_cairo_create();
-		tofi.renderer->init(
-				tofi.renderer,
-				tofi.window.surface.shm_pool_data,
-				tofi.window.surface.width,
-				tofi.window.surface.height,
+		velo.renderer = renderer_cairo_create();
+		velo.renderer->init(
+				velo.renderer,
+				velo.window.surface.shm_pool_data,
+				velo.window.surface.width,
+				velo.window.surface.height,
 				(double)scale / 120.0,
-				&tofi.view_theme);
+				&velo.view_theme);
 		
-		tofi.renderer->begin_frame(tofi.renderer);
-		tofi.renderer->render(tofi.renderer, &tofi.view_state, &tofi.view_theme, &tofi.view_layout);
-		tofi.renderer->end_frame(tofi.renderer);
+		velo.renderer->begin_frame(velo.renderer);
+		velo.renderer->render(velo.renderer, &velo.view_state, &velo.view_theme, &velo.view_layout);
+		velo.renderer->end_frame(velo.renderer);
 	}
 	log_unindent();
 	log_debug("Renderer initialised.\n");
 
-	surface_draw(&tofi.window.surface);
+	surface_draw(&velo.window.surface);
 
-	wl_display_roundtrip(tofi.wl_display);
+	wl_display_roundtrip(velo.wl_display);
 
-	if (tofi.autosize) {
-		tofi.view_state.render_height = autosize_calc_height(&tofi);
+	if (velo.autosize) {
+		velo.view_state.render_height = autosize_calc_height(&velo);
 
-		tofi.renderer->begin_frame(tofi.renderer);
-		tofi.renderer->render(tofi.renderer, &tofi.view_state, &tofi.view_theme, &tofi.view_layout);
-		tofi.renderer->end_frame(tofi.renderer);
-		surface_draw(&tofi.window.surface);
+		velo.renderer->begin_frame(velo.renderer);
+		velo.renderer->render(velo.renderer, &velo.view_state, &velo.view_theme, &velo.view_layout);
+		velo.renderer->end_frame(velo.renderer);
+		surface_draw(&velo.window.surface);
 	}
 
-	tofi.window.surface.redraw = false;
+	velo.window.surface.redraw = false;
 
 	/*
 	 * Main event loop.
 	 * See the wl_display(3) man page for an explanation of the
 	 * order of the various functions called here.
 	 */
-	while (!tofi.closed) {
+	while (!velo.closed) {
 		struct pollfd pollfds[3] = {{0}, {0}, {0}};
-		pollfds[0].fd = wl_display_get_fd(tofi.wl_display);
+		pollfds[0].fd = wl_display_get_fd(velo.wl_display);
 
 		/* Make sure we're ready to receive events on the main queue. */
-		while (wl_display_prepare_read(tofi.wl_display) != 0) {
-			wl_display_dispatch_pending(tofi.wl_display);
+		while (wl_display_prepare_read(velo.wl_display) != 0) {
+			wl_display_dispatch_pending(velo.wl_display);
 		}
 
 		/* Make sure all our requests have been sent to the server. */
-		while (wl_display_flush(tofi.wl_display) != 0) {
+		while (wl_display_flush(velo.wl_display) != 0) {
 			pollfds[0].events = POLLOUT;
 			poll(&pollfds[0], 1, -1);
 		}
@@ -2502,8 +2502,8 @@ int main(int argc, char *argv[])
 		 * there's some key repeating going on.
 		 */
 		int timeout = -1;
-		if (tofi.repeat.active) {
-			int64_t wait = (int64_t)tofi.repeat.next - (int64_t)gettime_ms();
+		if (velo.repeat.active) {
+			int64_t wait = (int64_t)velo.repeat.next - (int64_t)gettime_ms();
 			if (wait >= 0) {
 				timeout = wait;
 			} else {
@@ -2511,8 +2511,8 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		if (tofi.feedback_process.active) {
-			int64_t wait = FEEDBACK_TIMEOUT_MS - ((int64_t)gettime_ms() - (int64_t)tofi.feedback_process.start_time);
+		if (velo.feedback_process.active) {
+			int64_t wait = FEEDBACK_TIMEOUT_MS - ((int64_t)gettime_ms() - (int64_t)velo.feedback_process.start_time);
 			if (wait <= 0) {
 				timeout = 0;
 			} else if (timeout < 0 || wait < timeout) {
@@ -2528,14 +2528,14 @@ int main(int argc, char *argv[])
 		pollfds[0].events = POLLIN | POLLPRI;
 		int nfds = 1;
 		
-		if (tofi.clipboard.fd > 0) {
-			pollfds[nfds].fd = tofi.clipboard.fd;
+		if (velo.clipboard.fd > 0) {
+			pollfds[nfds].fd = velo.clipboard.fd;
 			pollfds[nfds].events = POLLIN | POLLPRI;
 			nfds++;
 		}
 		
-		if (tofi.feedback_process.active) {
-			pollfds[nfds].fd = tofi.feedback_process.fd;
+		if (velo.feedback_process.active) {
+			pollfds[nfds].fd = velo.feedback_process.fd;
 			pollfds[nfds].events = POLLIN | POLLHUP;
 			nfds++;
 		}
@@ -2547,70 +2547,70 @@ int main(int argc, char *argv[])
 			 * No events to process and no error - we presumably
 			 * have a key repeat to handle.
 			 */
-			wl_display_cancel_read(tofi.wl_display);
-			if (tofi.repeat.active) {
-				int64_t wait = (int64_t)tofi.repeat.next - (int64_t)gettime_ms();
+			wl_display_cancel_read(velo.wl_display);
+			if (velo.repeat.active) {
+				int64_t wait = (int64_t)velo.repeat.next - (int64_t)gettime_ms();
 				if (wait <= 0) {
-					input_handle_keypress(&tofi, tofi.repeat.keycode);
-					tofi.repeat.next += 1000 / tofi.repeat.rate;
+					input_handle_keypress(&velo, velo.repeat.keycode);
+					velo.repeat.next += 1000 / velo.repeat.rate;
 				}
 			}
-			feedback_process_check_timeout(&tofi);
-			feedback_update_loading_animation(&tofi);
+			feedback_process_check_timeout(&velo);
+			feedback_update_loading_animation(&velo);
 		} else if (res < 0) {
 			/* There was an error polling the display. */
-			wl_display_cancel_read(tofi.wl_display);
+			wl_display_cancel_read(velo.wl_display);
 		} else {
 			if (pollfds[0].revents & (POLLIN | POLLPRI)) {
 				/* Events to read, so put them on the queue. */
-				wl_display_read_events(tofi.wl_display);
+				wl_display_read_events(velo.wl_display);
 			} else {
 				/*
 				 * No events to read - we were woken up to
 				 * handle clipboard data.
 				 */
-				wl_display_cancel_read(tofi.wl_display);
+				wl_display_cancel_read(velo.wl_display);
 			}
-			if (tofi.clipboard.fd > 0 && (pollfds[1].revents & (POLLIN | POLLPRI))) {
+			if (velo.clipboard.fd > 0 && (pollfds[1].revents & (POLLIN | POLLPRI))) {
 				/* Read clipboard data. */
-				read_clipboard(&tofi);
+				read_clipboard(&velo);
 			}
-			if (tofi.clipboard.fd > 0 && (pollfds[1].revents & POLLHUP)) {
+			if (velo.clipboard.fd > 0 && (pollfds[1].revents & POLLHUP)) {
 				/*
 				 * The other end of the clipboard pipe has
 				 * closed, cleanup.
 				 */
-				clipboard_finish_paste(&tofi.clipboard);
+				clipboard_finish_paste(&velo.clipboard);
 			}
-			if (tofi.feedback_process.active) {
+			if (velo.feedback_process.active) {
 				int feedback_idx = 1;
-				if (tofi.clipboard.fd > 0) {
+				if (velo.clipboard.fd > 0) {
 					feedback_idx = 2;
 				}
 				if (pollfds[feedback_idx].revents & POLLHUP) {
-					feedback_process_complete(&tofi);
+					feedback_process_complete(&velo);
 				}
 			}
 		}
 
 		/* Handle any events we read. */
-		wl_display_dispatch_pending(tofi.wl_display);
+		wl_display_dispatch_pending(velo.wl_display);
 
-		if (tofi.window.surface.redraw) {
-			if (tofi.autosize) {
-				tofi.view_state.render_height = autosize_calc_height(&tofi);
+		if (velo.window.surface.redraw) {
+			if (velo.autosize) {
+				velo.view_state.render_height = autosize_calc_height(&velo);
 			}
 
-			tofi.renderer->begin_frame(tofi.renderer);
-			tofi.renderer->render(tofi.renderer, &tofi.view_state, &tofi.view_theme, &tofi.view_layout);
-			tofi.renderer->end_frame(tofi.renderer);
+			velo.renderer->begin_frame(velo.renderer);
+			velo.renderer->render(velo.renderer, &velo.view_state, &velo.view_theme, &velo.view_layout);
+			velo.renderer->end_frame(velo.renderer);
 
-			surface_draw(&tofi.window.surface);
-			tofi.window.surface.redraw = false;
+			surface_draw(&velo.window.surface);
+			velo.window.surface.redraw = false;
 		}
-		if (tofi.submit) {
-			tofi.submit = false;
-			if (do_submit(&tofi)) {
+		if (velo.submit) {
+			velo.submit = false;
+			if (do_submit(&velo)) {
 				break;
 			}
 		}
@@ -2625,56 +2625,56 @@ int main(int argc, char *argv[])
 	 * mostly from Pango, and Cairo holds onto quite a bit of cached data
 	 * (without leaking it)
 	 */
-	surface_destroy(&tofi.window.surface);
-	if (tofi.renderer) {
-		tofi.renderer->destroy(tofi.renderer);
-		free(tofi.renderer);
+	surface_destroy(&velo.window.surface);
+	if (velo.renderer) {
+		velo.renderer->destroy(velo.renderer);
+		free(velo.renderer);
 	}
-	if (tofi.window.wp_viewport != NULL) {
-		wp_viewport_destroy(tofi.window.wp_viewport);
+	if (velo.window.wp_viewport != NULL) {
+		wp_viewport_destroy(velo.window.wp_viewport);
 	}
-	zwlr_layer_surface_v1_destroy(tofi.window.zwlr_layer_surface);
-	wl_surface_destroy(tofi.window.surface.wl_surface);
-	if (tofi.wl_keyboard != NULL) {
-		wl_keyboard_release(tofi.wl_keyboard);
+	zwlr_layer_surface_v1_destroy(velo.window.zwlr_layer_surface);
+	wl_surface_destroy(velo.window.surface.wl_surface);
+	if (velo.wl_keyboard != NULL) {
+		wl_keyboard_release(velo.wl_keyboard);
 	}
-	if (tofi.wl_pointer != NULL) {
-		wl_pointer_release(tofi.wl_pointer);
+	if (velo.wl_pointer != NULL) {
+		wl_pointer_release(velo.wl_pointer);
 	}
-	wl_compositor_destroy(tofi.wl_compositor);
-	if (tofi.clipboard.wl_data_offer != NULL) {
-		wl_data_offer_destroy(tofi.clipboard.wl_data_offer);
+	wl_compositor_destroy(velo.wl_compositor);
+	if (velo.clipboard.wl_data_offer != NULL) {
+		wl_data_offer_destroy(velo.clipboard.wl_data_offer);
 	}
-	wl_data_device_release(tofi.wl_data_device);
-	wl_data_device_manager_destroy(tofi.wl_data_device_manager);
-	wl_seat_release(tofi.wl_seat);
+	wl_data_device_release(velo.wl_data_device);
+	wl_data_device_manager_destroy(velo.wl_data_device_manager);
+	wl_seat_release(velo.wl_seat);
 	{
 		struct output_list_element *el;
 		struct output_list_element *tmp;
-		wl_list_for_each_safe(el, tmp, &tofi.output_list, link) {
+		wl_list_for_each_safe(el, tmp, &velo.output_list, link) {
 			wl_list_remove(&el->link);
 			wl_output_release(el->wl_output);
 			free(el->name);
 			free(el);
 		}
 	}
-	wl_shm_destroy(tofi.wl_shm);
-	if (tofi.wp_fractional_scale_manager != NULL) {
-		wp_fractional_scale_manager_v1_destroy(tofi.wp_fractional_scale_manager);
+	wl_shm_destroy(velo.wl_shm);
+	if (velo.wp_fractional_scale_manager != NULL) {
+		wp_fractional_scale_manager_v1_destroy(velo.wp_fractional_scale_manager);
 	}
-	if (tofi.wp_viewporter != NULL) {
-		wp_viewporter_destroy(tofi.wp_viewporter);
+	if (velo.wp_viewporter != NULL) {
+		wp_viewporter_destroy(velo.wp_viewporter);
 	}
-	zwlr_layer_shell_v1_destroy(tofi.zwlr_layer_shell);
-	xkb_state_unref(tofi.xkb_state);
-	xkb_keymap_unref(tofi.xkb_keymap);
-	xkb_context_unref(tofi.xkb_context);
-	wl_registry_destroy(tofi.wl_registry);
-	string_ref_vec_destroy(&tofi.view_state.commands);
-	string_ref_vec_destroy(&tofi.view_state.results);
+	zwlr_layer_shell_v1_destroy(velo.zwlr_layer_shell);
+	xkb_state_unref(velo.xkb_state);
+	xkb_keymap_unref(velo.xkb_keymap);
+	xkb_context_unref(velo.xkb_context);
+	wl_registry_destroy(velo.wl_registry);
+	string_ref_vec_destroy(&velo.view_state.commands);
+	string_ref_vec_destroy(&velo.view_state.results);
 	
 	struct nav_level *lvl;
-	wl_list_for_each(lvl, &tofi.nav_stack, link) {
+	wl_list_for_each(lvl, &velo.nav_stack, link) {
 		if (lvl->mode == SELECTION_FEEDBACK) {
 			feedback_history_save(lvl);
 		}
@@ -2682,25 +2682,25 @@ int main(int argc, char *argv[])
 	
 	plugin_destroy();
 	builtin_cleanup();
-	nav_results_destroy(&tofi.base_results);
-	dict_destroy(tofi.base_dict);
+	nav_results_destroy(&velo.base_results);
+	dict_destroy(velo.base_dict);
 #endif
 	/*
 	 * For release builds, skip straight to display disconnection and quit.
 	 */
-	wl_display_roundtrip(tofi.wl_display);
-	wl_display_disconnect(tofi.wl_display);
+	wl_display_roundtrip(velo.wl_display);
+	wl_display_disconnect(velo.wl_display);
 
 	log_debug("Finished, exiting.\n");
-	if (tofi.picker_mode || tofi.input_mode) {
-		if (tofi.pipe_output[0]) {
-			printf("%s\n", tofi.pipe_output);
+	if (velo.picker_mode || velo.input_mode) {
+		if (velo.pipe_output[0]) {
+			printf("%s\n", velo.pipe_output);
 			fflush(stdout);
 			return EXIT_SUCCESS;
 		}
 		return EXIT_FAILURE;
 	}
-	if (tofi.closed) {
+	if (velo.closed) {
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;

@@ -1,4 +1,4 @@
-# hypr-tofi
+# velo
 
 A fast, plugin-extensible launcher for Wayland — [tofi](https://github.com/philj56/tofi)'s speed with rofi's extensibility, achieved declaratively through TOML.
 
@@ -30,7 +30,7 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 | **tmux** | list | Session manager: attach, close, new, freeze, unfreeze |
 | **hyprland** | list | Window focus, workspace switching |
 | **wifi** | list | Connect, reconnect, forget networks |
-| **theme** | list | Switch themes for hypr-tofi, kitty, waybar, hyprland |
+| **theme** | list | Switch themes for velo, kitty, waybar, hyprland |
 | **enter-password** | input | Reusable password prompt (chains with `next`) |
 
 ## Install
@@ -52,35 +52,35 @@ ninja -C build
 
 ```sh
 # Main menu - shows all global plugins
-hypr-tofi
+velo
 
 # Launch directly into app list (like rofi -show drun)
-hypr-tofi -e drun
+velo -e drun
 
 # Show only specific plugins as root menu
-hypr-tofi -p tmux-freeze,tmux-unfreeze
+velo -p tmux-freeze,tmux-unfreeze
 
 # Filter which global plugins appear on root menu
-hypr-tofi -f all,-drun
+velo -f all,-drun
 
 # dmenu replacement
-echo -e "option1\noption2\noption3" | hypr-tofi --pick
+echo -e "option1\noption2\noption3" | velo --pick
 
 # Text input (zenity --entry replacement)
-hypr-tofi --input --prompt-text "Name: "
+velo --input --prompt-text "Name: "
 
 # Password input (zenity --password replacement)
-hypr-tofi --input --sensitive --prompt-text "Password: "
+velo --input --sensitive --prompt-text "Password: "
 
 # List available themes
-hypr-tofi --list-themes
+velo --list-themes
 ```
 
 ### With Hyprland
 
 ```
 # In hyprland.conf
-$menu = hypr-tofi -e drun
+$menu = velo -e drun
 bind = SUPER, Space, exec, $menu
 ```
 
@@ -96,7 +96,7 @@ url:github.com     → opens URL launcher with input pre-filled
 
 ## Plugin Authoring
 
-Create a `.toml` file in `~/.config/hypr-tofi/plugins/`:
+Create a `.toml` file in `~/.config/velo/plugins/`:
 
 ```toml
 # Simple action
@@ -126,7 +126,7 @@ See [PLUGIN_SYSTEM.md](PLUGIN_SYSTEM.md) for the complete reference.
 
 ## Comparison
 
-| Aspect | tofi | rofi | hypr-tofi |
+| Aspect | tofi | rofi | velo |
 |--------|------|------|-----------|
 | Startup speed | ~2-6ms | Slower | ~2-6ms (inherits tofi) |
 | Extensibility | None (fixed modes) | C plugins + scripts | TOML plugins (no code) |
@@ -136,7 +136,7 @@ See [PLUGIN_SYSTEM.md](PLUGIN_SYSTEM.md) for the complete reference.
 
 ## Configuration
 
-Config file: `~/.config/hypr-tofi/config`
+Config file: `~/.config/velo/config`
 
 ```
 font = "Sans"

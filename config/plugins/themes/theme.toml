@@ -5,12 +5,12 @@ global = true
 children = ["theme-tofi", "theme-kitty", "theme-waybar", "theme-hyprland"]
 ---
 name = "theme-tofi"
-display_label = "hypr-tofi"
+display_label = "velo"
 type = "select"
-list_cmd = "ls -1 ~/.config/hypr-tofi/themes/ | sed 's/\\.toml$//'"
+list_cmd = "ls -1 ~/.config/velo/themes/ | sed 's/\\.toml$//'"
 format = "lines"
 as = "theme"
-template = "sed -i 's/^theme = .*/theme = \"{theme}\"/' \"$HOME/.config/hypr-tofi/config\""
+template = "sed -i 's/^theme = .*/theme = \"{theme}\"/' \"$HOME/.config/velo/config\""
 execution_type = "exec"
 ---
 name = "theme-kitty"
