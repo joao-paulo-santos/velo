@@ -211,12 +211,6 @@ if scdoc.found()
     install_dir: '@0@/man1'.format(mandir)
   )
 
-  install_symlink(
-    'tofi.1',
-    install_dir: '@0@/man1'.format(mandir),
-    pointing_to: 'velo.1'
-  )
-
   output = 'velo.5'
   custom_target(
     output,

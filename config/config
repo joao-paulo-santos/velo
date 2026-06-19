@@ -1,6 +1,6 @@
-# hypr-tofi config
+# velo config
 
-theme = "default"
+theme = "cherry-blossom"
 
 autosize = true
 

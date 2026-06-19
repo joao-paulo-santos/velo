@@ -1,6 +1,6 @@
 #!/bin/sh
 # List WiFi networks with status, signal, and rate
-# Output as JSON array for hypr-tofi
+# Output as JSON array for velo
 
 nmcli device wifi rescan 2>/dev/null
 sleep 0.3

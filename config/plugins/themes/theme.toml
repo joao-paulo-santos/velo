@@ -2,9 +2,9 @@ name = "theme"
 display_label = "Themes"
 type = "list"
 global = true
-children = ["theme-tofi", "theme-kitty", "theme-waybar", "theme-hyprland"]
+children = ["theme-velo", "theme-kitty", "theme-waybar", "theme-hyprland"]
 ---
-name = "theme-tofi"
+name = "theme-velo"
 display_label = "velo"
 type = "select"
 list_cmd = "ls -1 ~/.config/velo/themes/ | sed 's/\\.toml$//'"

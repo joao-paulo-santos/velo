@@ -1,6 +1,6 @@
-# Config for hypr-tofi
+# Config for velo
 #
-# Copy this file to ~/.config/hypr-tofi/config and get customising!
+# Copy this file to ~/.config/velo/config and get customising!
 
 ### Fonts
 font = Sans
