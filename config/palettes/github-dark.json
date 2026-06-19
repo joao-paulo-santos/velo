@@ -1,0 +1,18 @@
+{
+  "dark": {
+    "surface": "#010409",
+    "onSurface": "#c9d1d9",
+    "primary": "#58a6ff",
+    "onPrimary": "#010409",
+    "secondary": "#bc8cff",
+    "outline": "#30363d"
+  },
+  "light": {
+    "surface": "#ffffff",
+    "onSurface": "#1f2328",
+    "primary": "#0969da",
+    "onPrimary": "#ffffff",
+    "secondary": "#1a7f37",
+    "outline": "#d0d7de"
+  }
+}
