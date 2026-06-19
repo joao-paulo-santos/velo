@@ -1,7 +1,0 @@
-name = "tmux-new"
-display_label = "New"
-type = "input"
-prompt = "Session name: "
-as = "session"
-template = "nohup $TERMINAL tmux new-session -s {session} >/dev/null 2>&1 &"
-execution_type = "exec"

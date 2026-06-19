@@ -3,3 +3,42 @@ display_label = "Themes"
 type = "list"
 global = true
 children = ["theme-tofi", "theme-kitty", "theme-waybar", "theme-hyprland"]
+---
+name = "theme-tofi"
+display_label = "hypr-tofi"
+type = "select"
+list_cmd = "ls -1 ~/.config/hypr-tofi/themes/ | sed 's/\\.toml$//'"
+format = "lines"
+as = "theme"
+template = "sed -i 's/^theme = .*/theme = \"{theme}\"/' \"$HOME/.config/hypr-tofi/config\""
+execution_type = "exec"
+---
+name = "theme-kitty"
+display_label = "Kitty"
+type = "select"
+depends = ["kitty"]
+list_cmd = "ls -1 ~/.config/kitty/kitty-themes/themes/ | sed 's/\\.conf$//'"
+format = "lines"
+as = "theme"
+template = "~/.config/kitty/scripts/kitty-theme.sh {theme}"
+execution_type = "exec"
+---
+name = "theme-waybar"
+display_label = "Waybar"
+type = "select"
+depends = ["waybar"]
+list_cmd = "ls -1 ~/.config/waybar/profiles/"
+format = "lines"
+as = "profile"
+template = "~/.config/waybar/scripts/waybar-profile.sh {profile}"
+execution_type = "exec"
+---
+name = "theme-hyprland"
+display_label = "Hyprland"
+type = "select"
+depends = ["hyprctl"]
+list_cmd = "ls -1 ~/.config/hypr/users/ | sed 's/\\.lua$//'"
+format = "lines"
+as = "profile"
+template = "~/.config/hypr/scripts/hyprland-profile.sh {profile}"
+execution_type = "exec"

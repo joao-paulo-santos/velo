@@ -1,9 +1,0 @@
-name = "theme-kitty"
-display_label = "Kitty"
-type = "select"
-depends = ["kitty"]
-list_cmd = "ls -1 ~/.config/kitty/kitty-themes/themes/ | sed 's/\\.conf$//'"
-format = "lines"
-as = "theme"
-template = "~/.config/kitty/scripts/kitty-theme.sh {theme}"
-execution_type = "exec"

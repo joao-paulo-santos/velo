@@ -1,9 +1,0 @@
-name = "tmux-freeze"
-display_label = "Freeze"
-type = "select"
-depends = ["tmux-fridge"]
-list_cmd = "tmux list-sessions -F '#{session_name}'"
-format = "lines"
-as = "session"
-template = "tmux-fridge freeze {session}"
-execution_type = "exec"

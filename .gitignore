@@ -69,3 +69,6 @@ PLUGIN_SYSTEM.md
 
 # Feedback plugin history
 config/history/
+
+# Local test plugins
+config/plugins/testing/

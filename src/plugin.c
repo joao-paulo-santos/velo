@@ -296,14 +296,32 @@ static struct plugin *plugin_create(void)
 	return p;
 }
 
-static struct plugin *parse_toml_file(const char *path)
+static bool finalize_plugin(struct plugin *plugin, const char *path)
+{
+	if (!plugin->name[0]) {
+		log_error("Plugin missing name: %s\n", path);
+		free(plugin);
+		return false;
+	}
+	plugin->deps_satisfied = check_dependencies(plugin);
+	wl_list_insert(plugins.prev, &plugin->link);
+	log_debug("Loaded plugin: %s (type=%d, global=%s, deps=%s)\n",
+			plugin->name,
+			plugin->type,
+			plugin->global ? "yes" : "no",
+			plugin->deps_satisfied ? "ok" : "missing");
+	return true;
+}
+
+static int parse_toml_file(const char *path)
 {
 	FILE *fp = fopen(path, "r");
 	if (!fp) {
 		log_error("Failed to open plugin file: %s\n", path);
-		return NULL;
+		return 0;
 	}
 
+	int count = 0;
 	struct plugin *plugin = plugin_create();
 	char line[MAX_LINE_LEN];
 
@@ -311,6 +329,12 @@ static struct plugin *parse_toml_file(const char *path)
 		char *trimmed = trim(line);
 
 		if (*trimmed == '\0' || *trimmed == '#') continue;
+
+		if (strcmp(trimmed, "---") == 0) {
+			if (finalize_plugin(plugin, path)) count++;
+			plugin = plugin_create();
+			continue;
+		}
 
 		char *eq = strchr(trimmed, '=');
 		if (!eq) continue;
@@ -379,15 +403,9 @@ static struct plugin *parse_toml_file(const char *path)
 
 	fclose(fp);
 
-	if (!plugin->name[0]) {
-		log_error("Plugin missing name: %s\n", path);
-		free(plugin);
-		return NULL;
-	}
+	if (finalize_plugin(plugin, path)) count++;
 
-	plugin->deps_satisfied = check_dependencies(plugin);
-
-	return plugin;
+	return count;
 }
 
 void plugin_load_directory(const char *path)
@@ -416,15 +434,7 @@ void plugin_load_directory(const char *path)
 		char *ext = strrchr(entry->d_name, '.');
 		if (!ext || strcmp(ext, ".toml") != 0) continue;
 
-		struct plugin *plugin = parse_toml_file(full_path);
-		if (plugin) {
-		wl_list_insert(plugins.prev, &plugin->link);
-		log_debug("Loaded plugin: %s (type=%d, global=%s, deps=%s)\n",
-				plugin->name,
-				plugin->type,
-				plugin->global ? "yes" : "no",
-				plugin->deps_satisfied ? "ok" : "missing");
-		}
+		parse_toml_file(full_path);
 	}
 
 	closedir(dir);

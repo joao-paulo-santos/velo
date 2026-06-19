@@ -1,9 +1,82 @@
 name = "tmux"
 display_label = "Tmux"
-display_prefix = ""
 context_name = "Tmux"
 type = "list"
 global = true
 teleport = true
 depends = ["tmux"]
 children = ["tmux-attach", "tmux-close", "tmux-new", "tmux-freeze", "tmux-unfreeze", "tmux-cold-storage"]
+---
+name = "tmux-attach"
+display_label = "Attach"
+type = "select"
+teleport = true
+depends = ["tmux-fridge"]
+list_cmd = "tmux list-sessions -F '#{session_name}'"
+format = "lines"
+as = "session"
+template = "tmux-fridge attach {session}"
+execution_type = "exec"
+---
+name = "tmux-close"
+display_label = "Close"
+type = "select"
+list_cmd = "tmux list-sessions -F '#{session_name}'"
+format = "lines"
+as = "session"
+template = "tmux kill-session -t {session}"
+execution_type = "exec"
+---
+name = "tmux-new"
+display_label = "New"
+type = "input"
+prompt = "Session name: "
+as = "session"
+template = "nohup $TERMINAL tmux new-session -s {session} >/dev/null 2>&1 &"
+execution_type = "exec"
+---
+name = "tmux-freeze"
+display_label = "Freeze"
+type = "select"
+depends = ["tmux-fridge"]
+list_cmd = "tmux list-sessions -F '#{session_name}'"
+format = "lines"
+as = "session"
+template = "tmux-fridge freeze {session}"
+execution_type = "exec"
+---
+name = "tmux-unfreeze"
+display_label = "Unfreeze"
+type = "select"
+depends = ["tmux-fridge"]
+list_cmd = "tmux-fridge list-frozen"
+format = "lines"
+as = "workspace"
+template = "tmux-fridge unfreeze {workspace}"
+execution_type = "exec"
+---
+name = "tmux-cold-storage"
+display_label = "Cold Storage"
+type = "list"
+depends = ["tmux-fridge"]
+children = ["tmux-cold-recover", "tmux-cold-delete"]
+---
+name = "tmux-cold-recover"
+display_label = "Recover"
+type = "select"
+depends = ["tmux-fridge"]
+list_cmd = "tmux-fridge list-cold"
+format = "lines"
+as = "session"
+template = "tmux-fridge recover {session}"
+execution_type = "exec"
+---
+name = "tmux-cold-delete"
+display_label = "Delete"
+type = "select"
+depends = ["tmux-fridge"]
+list_cmd = "tmux-fridge list-cold-all"
+format = "lines"
+as = "session"
+template = "tmux-fridge clean {session}"
+execution_type = "exec"

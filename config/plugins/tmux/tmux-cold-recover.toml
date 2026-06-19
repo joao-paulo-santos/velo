@@ -1,9 +1,0 @@
-name = "tmux-cold-recover"
-display_label = "Recover"
-type = "select"
-depends = ["tmux-fridge"]
-list_cmd = "tmux-fridge list-cold"
-format = "lines"
-as = "session"
-template = "tmux-fridge recover {session}"
-execution_type = "exec"

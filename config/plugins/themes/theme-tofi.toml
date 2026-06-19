@@ -1,8 +1,0 @@
-name = "theme-tofi"
-display_label = "hypr-tofi"
-type = "select"
-list_cmd = "ls -1 ~/.config/hypr-tofi/themes/ | sed 's/\\.toml$//'"
-format = "lines"
-as = "theme"
-template = "sed -i 's/^theme = .*/theme = \"{theme}\"/' \"$HOME/.config/hypr-tofi/config\""
-execution_type = "exec"

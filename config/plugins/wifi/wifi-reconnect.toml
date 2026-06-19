@@ -1,5 +1,0 @@
-name = "wifi-reconnect"
-display_label = "Reconnect"
-type = "exec"
-template = "nmcli connection up \"$(nmcli -t -f NAME,DEVICE connection show --active | grep :wifi | cut -d: -f1)\" && notify-send WiFi 'Reconnected' || notify-send WiFi 'Failed to reconnect'"
-execution_type = "exec"

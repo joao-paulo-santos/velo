@@ -1,9 +1,0 @@
-name = "tmux-cold-delete"
-display_label = "Delete"
-type = "select"
-depends = ["tmux-fridge"]
-list_cmd = "tmux-fridge list-cold-all"
-format = "lines"
-as = "session"
-template = "tmux-fridge clean {session}"
-execution_type = "exec"
