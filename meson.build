@@ -86,6 +86,20 @@ install_symlink(
   pointing_to: 'velo',
 )
 
+icon_location = join_paths(
+  get_option('datadir'),
+  'icons',
+  'hicolor',
+  '256x256',
+  'apps'
+)
+
+install_data(
+  'readme-assets/logo.png',
+  rename: 'velo.png',
+  install_dir: icon_location
+)
+
 add_project_arguments(
   [
     '-pedantic',

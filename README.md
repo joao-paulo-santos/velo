@@ -1,23 +1,26 @@
-# velo
+<div align="center">
+  <img src="readme-assets/logo.png" alt="velo" width="192">
+  <h1>velo</h1>
+</div>
 
-A fast, plugin-extensible launcher for Wayland — [tofi](https://github.com/philj56/tofi)'s speed with rofi's extensibility, achieved declaratively through TOML.
+A fast, plugin-extensible launcher for Wayland, combining [tofi](https://github.com/philj56/tofi)'s speed with rofi's extensibility through TOML.
 
 No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 
 ## Features
 
-- **TOML plugin system** — all functionality is a plugin: app launcher, calculator, AI chat, tmux manager, WiFi connector, and more
-- **5 plugin types** — `list` (menus), `select` (dynamic lists), `input` (text prompts), `feedback` (interactive loops), `exec` (immediate actions)
-- **Stack-based navigation** — arbitrary nesting depth, ESC always pops one level
-- **Dictionary flow** — values accumulate through the nav stack via `{key}` template substitution
-- **Plugin chaining** — `next` forwards to another plugin, `return` passes values back to parent
-- **Teleport** — type `calc:`, `tmux:`, `url:` to jump directly to any plugin
-- **Autosize** — dynamic window height that grows/shrinks to fit results (like macOS Spotlight)
-- **Theming** — `theme = "name"` loads visual presets, `--list-themes` to list, theme picker plugin
-- **Pipe modes** — `--pick` (dmenu replacement), `--input` (zenity --entry), `--sensitive` (passwords)
-- **Fuzzy search** — results sorted by match quality (contiguous > spread out)
-- **Dependency checking** — plugins auto-hide if required binaries are missing
-- **Fast** — inherits tofi's performance (~2-6ms startup)
+- **TOML plugin system**: all functionality is a plugin: app launcher, calculator, AI chat, tmux manager, WiFi connector, and more
+- **5 plugin types**: `list` (menus), `select` (dynamic lists), `input` (text prompts), `feedback` (interactive loops), `exec` (immediate actions)
+- **Stack-based navigation**: arbitrary nesting depth, ESC always pops one level
+- **Dictionary flow**: values accumulate through the nav stack via `{key}` template substitution
+- **Plugin chaining**: `next` forwards to another plugin, `return` passes values back to parent
+- **Teleport**: type `calc:`, `tmux:`, `url:` to jump directly to any plugin
+- **Autosize**: dynamic window height that grows/shrinks to fit results (like macOS Spotlight)
+- **Theming**: `theme = "name"` loads visual presets, `--list-themes` to list, theme picker plugin
+- **Pipe modes**: `--pick` (dmenu replacement), `--input` (zenity --entry), `--sensitive` (passwords)
+- **Fuzzy search**: results sorted by match quality (contiguous > spread out)
+- **Dependency checking**: plugins auto-hide if required binaries are missing
+- **Fast**: inherits tofi's performance (~2-6ms startup)
 
 ## Bundled Plugins
 
@@ -159,5 +162,5 @@ See `doc/config` for all supported options.
 
 ## Credits
 
-- **Original author**: [Philip Jones](https://github.com/philj56) — [tofi](https://github.com/philj56/tofi)
+- **tofi author**: [Philip Jones](https://github.com/philj56), creator of [tofi](https://github.com/philj56/tofi)
 - **License**: MIT
