@@ -1,7 +1,7 @@
 project(
   'hypr-tofi',
   'c',
-  version: '0.3.0',
+  version: '0.0.1',
   license: 'MIT',
   meson_version: '>=0.61.0',
   default_options: [
