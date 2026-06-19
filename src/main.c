@@ -854,6 +854,7 @@ static void usage(bool err)
 "      --border-width <px>     Border width.\n"
 "      --accent-color          Accent color (border, selection, separator).\n"
 "      --corner-radius <px>    Corner radius.\n"
+"  -L, --list-themes           List available themes and exit.\n"
 "\n"
 "Config file: ~/.config/hypr-tofi/config\n"
 "Plugins dir: ~/.config/hypr-tofi/plugins/\n"
@@ -887,9 +888,10 @@ const struct option long_options[] = {
 	{"margin-left", required_argument, NULL, 0},
 	{"margin-right", required_argument, NULL, 0},
 	{"padding", required_argument, NULL, 0},
+	{"list-themes", no_argument, NULL, 'L'},
 	{NULL, 0, NULL, 0}
 };
-const char *short_options = ":hc:f:p:e:t:PIS";
+const char *short_options = ":hc:f:p:e:t:PISL";
 
 static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
 {
@@ -909,6 +911,9 @@ static void parse_args(struct tofi *tofi, int argc, char *argv[], const char **e
 	while (opt != -1) {
 		if (opt == 'h') {
 			usage(false);
+			exit(EXIT_SUCCESS);
+		} else if (opt == 'L') {
+			config_list_themes();
 			exit(EXIT_SUCCESS);
 		} else if (opt == 'c') {
 			config_load(tofi, optarg);
@@ -1858,6 +1863,14 @@ static uint32_t autosize_calc_height(struct tofi *tofi)
 
 int main(int argc, char *argv[])
 {
+	/* Handle early-exit flags before any initialization. */
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--list-themes") == 0 || strcmp(argv[i], "-L") == 0) {
+			config_list_themes();
+			return EXIT_SUCCESS;
+		}
+	}
+
 	/* Call log_debug to initialise the timers we use for perf checking. */
 	log_debug("This is tofi.\n");
 

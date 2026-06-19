@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <libgen.h>
 #include <stdio.h>
@@ -446,6 +447,45 @@ static char *resolve_theme_path(const char *theme_name)
 	}
 	free(fallback_base);
 	return NULL;
+}
+
+void config_list_themes(void)
+{
+	const char *config_base = getenv("XDG_CONFIG_HOME");
+	char *fallback_base = NULL;
+	if (!config_base) {
+		const char *home = getenv("HOME");
+		if (home) {
+			size_t len = strlen(home) + strlen("/.config") + 1;
+			fallback_base = xmalloc(len);
+			snprintf(fallback_base, len, "%s/.config", home);
+			config_base = fallback_base;
+		}
+	}
+	if (!config_base) {
+		return;
+	}
+
+	char path[512];
+	snprintf(path, sizeof(path), "%s/hypr-tofi/themes", config_base);
+
+	DIR *dir = opendir(path);
+	if (!dir) {
+		free(fallback_base);
+		return;
+	}
+
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL) {
+		const char *name = entry->d_name;
+		size_t len = strlen(name);
+		if (len > 5 && strcmp(name + len - 5, ".toml") == 0) {
+			printf("%.*s\n", (int)(len - 5), name);
+		}
+	}
+
+	closedir(dir);
+	free(fallback_base);
 }
 
 void config_load_theme(struct tofi *tofi)
