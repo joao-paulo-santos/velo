@@ -19,7 +19,7 @@ corner-radius = 0
 padding = 16
 
 ### Positioning
-output =
+# output = eDP-1
 anchor = center
 margin-top = 0
 margin-bottom = 0
@@ -36,4 +36,4 @@ prompt-text = "> "
 #   plugins = all
 #   plugins = all,-drun
 #   plugins = apps,windows
-plugins = all,-drun
+plugins = all

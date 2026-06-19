@@ -21,23 +21,15 @@ if debug
   add_project_arguments('-DDEBUG', language : 'c')
 endif
 
-config_location = join_paths(
-  get_option('sysconfdir'),
-  'xdg',
-  'velo'
-)
+velo_data_dir = join_paths(get_option('prefix'), get_option('datadir'), 'velo')
+add_project_arguments('-DVELO_DATA_DIR="@0@"'.format(velo_data_dir), language : 'c')
 
 install_data(
   'doc/config',
-  install_dir: config_location
+  install_dir: velo_data_dir
 )
 
-themes_location = join_paths(
-  get_option('sysconfdir'),
-  'xdg',
-  'velo',
-  'themes'
-)
+themes_location = join_paths(velo_data_dir, 'themes')
 
 install_data(
   files(
@@ -48,6 +40,11 @@ install_data(
     'config/themes/cherry-blossom.toml'
   ),
   install_dir: themes_location
+)
+
+install_subdir(
+  'config/plugins',
+  install_dir: velo_data_dir
 )
 
 license_dir = join_paths(
@@ -72,18 +69,6 @@ install_data(
   'completions/velo',
   rename: 'velo',
   install_dir: completion_location
-)
-
-install_symlink(
-  'velo',
-  install_dir: completion_location,
-  pointing_to: 'velo',
-)
-
-install_symlink(
-  'velo',
-  install_dir: get_option('bindir'),
-  pointing_to: 'velo',
 )
 
 icon_location = join_paths(

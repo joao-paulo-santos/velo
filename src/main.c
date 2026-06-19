@@ -1884,25 +1884,27 @@ int main(int argc, char *argv[])
 	struct velo velo = {
 		.window = {
 			.scale = 1,
-			.width = 1280,
-			.height = 720,
+			.width = 600,
+			.height = 400,
 		},
 		.view_theme = {
 			.font_name = "Sans",
-			.font_size = 24,
-			.padding_top = 8,
-			.padding_bottom = 8,
-			.padding_left = 8,
-			.padding_right = 8,
-			.border_width = 12,
-			.background_color = {0.106f, 0.114f, 0.118f, 1.0f},
-			.background_opacity = 1.0f,
+			.font_size = 14,
+			.padding_top = 16,
+			.padding_bottom = 16,
+			.padding_left = 16,
+			.padding_right = 16,
+			.border_width = 2,
+			.background_color = {0.102f, 0.106f, 0.149f, 1.0f},
+			.background_opacity = 0.85f,
 			.foreground_color = {1.0f, 1.0f, 1.0f, 1.0f},
-			.accent_color = {0.976f, 0.149f, 0.447f, 1.0f},
+			.accent_color = {0.0f, 0.851f, 1.0f, 1.0f},
 		},
 		.view_state = {
-			.prompt = "run: ",
+			.prompt = "> ",
 		},
+		.autosize = true,
+		.theme_name = "default",
 		.anchor =  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
@@ -1915,13 +1917,15 @@ int main(int argc, char *argv[])
 	velo.base_dict = dict_create();
 	wl_list_init(&velo.base_results);
 	
+	config_seed_if_needed();
 	plugin_init();
-	const char *home = getenv("HOME");
-	if (home) {
+	char *config_dir = get_user_config_dir();
+	if (config_dir) {
 		char plugin_dir[512];
-		snprintf(plugin_dir, sizeof(plugin_dir), "%s/.config/velo/plugins", home);
+		snprintf(plugin_dir, sizeof(plugin_dir), "%s/plugins", config_dir);
 		log_debug("Loading plugins from: %s\n", plugin_dir);
 		plugin_load_directory(plugin_dir);
+		free(config_dir);
 	}
 	log_debug("Loaded %zu plugins.\n", plugin_count());
 	

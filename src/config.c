@@ -1,11 +1,14 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "velo.h"
 #include "color.h"
 #include "config.h"
@@ -15,6 +18,10 @@
 #include "scale.h"
 #include "unicode.h"
 #include "xmalloc.h"
+
+#ifndef VELO_DATA_DIR
+#define VELO_DATA_DIR "/usr/share/velo"
+#endif
 
 /* Maximum number of config file errors before we give up */
 #define MAX_ERRORS 5
@@ -594,6 +601,162 @@ char *get_config_path()
 	char *name = xcalloc(len, sizeof(*name));
 	snprintf(name, len, "%s%s%s", base_dir, ext, "/velo/config");
 	return name;
+}
+
+char *get_user_config_dir(void)
+{
+	const char *base = getenv("XDG_CONFIG_HOME");
+	if (base) {
+		size_t len = strlen(base) + strlen("/velo") + 1;
+		char *result = xmalloc(len);
+		snprintf(result, len, "%s/velo", base);
+		return result;
+	}
+	const char *home = getenv("HOME");
+	if (!home) {
+		return NULL;
+	}
+	size_t len = strlen(home) + strlen("/.config/velo") + 1;
+	char *result = xmalloc(len);
+	snprintf(result, len, "%s/.config/velo", home);
+	return result;
+}
+
+static bool copy_file(const char *src, const char *dst)
+{
+	int in = open(src, O_RDONLY);
+	if (in < 0) {
+		log_error("seed: cannot open %s: %s\n", src, strerror(errno));
+		return false;
+	}
+	struct stat st;
+	mode_t mode = 0644;
+	if (fstat(in, &st) == 0) {
+		mode = st.st_mode & 0777;
+	}
+	int out = open(dst, O_WRONLY | O_CREAT | O_TRUNC, mode);
+	if (out < 0) {
+		log_error("seed: cannot create %s: %s\n", dst, strerror(errno));
+		close(in);
+		return false;
+	}
+	// Preserve executable mode for scripts despite umask.
+	fchmod(out, mode);
+
+	char buf[8192];
+	ssize_t n;
+	bool ok = true;
+	while ((n = read(in, buf, sizeof(buf))) > 0) {
+		ssize_t w = 0;
+		while (w < n) {
+			ssize_t r = write(out, buf + w, n - w);
+			if (r < 0) {
+				ok = false;
+				break;
+			}
+			w += r;
+		}
+		if (!ok) {
+			break;
+		}
+	}
+	if (n < 0) {
+		ok = false;
+	}
+	close(in);
+	close(out);
+	return ok;
+}
+
+static bool ensure_dir(const char *path)
+{
+	struct stat st;
+	if (stat(path, &st) == 0) {
+		return true;
+	}
+	char *tmp = xstrdup(path);
+	for (char *c = tmp + 1; *c; c++) {
+		if (*c == '/') {
+			*c = '\0';
+			if (mkdir(tmp, 0700) != 0 && errno != EEXIST) {
+				log_error("seed: cannot create directory %s: %s\n", tmp, strerror(errno));
+				free(tmp);
+				return false;
+			}
+			*c = '/';
+		}
+	}
+	if (mkdir(tmp, 0700) != 0 && errno != EEXIST) {
+		log_error("seed: cannot create directory %s: %s\n", tmp, strerror(errno));
+		free(tmp);
+		return false;
+	}
+	free(tmp);
+	return true;
+}
+
+static bool copy_tree(const char *src, const char *dst)
+{
+	if (!ensure_dir(dst)) {
+		return false;
+	}
+	DIR *dir = opendir(src);
+	if (!dir) {
+		log_error("seed: cannot open %s: %s\n", src, strerror(errno));
+		return false;
+	}
+	struct dirent *entry;
+	bool ok = true;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+			continue;
+		}
+		char src_path[512];
+		char dst_path[512];
+		snprintf(src_path, sizeof(src_path), "%s/%s", src, entry->d_name);
+		snprintf(dst_path, sizeof(dst_path), "%s/%s", dst, entry->d_name);
+
+		struct stat st;
+		if (lstat(src_path, &st) != 0) {
+			continue;
+		}
+		if (S_ISDIR(st.st_mode)) {
+			if (!copy_tree(src_path, dst_path)) {
+				ok = false;
+			}
+		} else if (S_ISREG(st.st_mode)) {
+			if (!copy_file(src_path, dst_path)) {
+				ok = false;
+			}
+		}
+	}
+	closedir(dir);
+	return ok;
+}
+
+void config_seed_if_needed(void)
+{
+	char *user_dir = get_user_config_dir();
+	if (!user_dir) {
+		return;
+	}
+
+	/*
+	 * Only seed on a genuine first run, when the user config directory does
+	 * not exist at all. This never clobbers an existing setup (including a
+	 * dev symlink to the repo config). Users can re-seed by deleting the dir.
+	 */
+	struct stat st;
+	if (stat(user_dir, &st) == 0) {
+		free(user_dir);
+		return;
+	}
+
+	log_debug("First run: seeding defaults from %s into %s\n", VELO_DATA_DIR, user_dir);
+	if (!copy_tree(VELO_DATA_DIR, user_dir)) {
+		log_error("Failed to seed default config into %s\n", user_dir);
+	}
+	free(user_dir);
 }
 
 uint32_t parse_anchor(const char *filename, size_t lineno, const char *str, bool *err)
