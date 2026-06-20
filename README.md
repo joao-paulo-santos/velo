@@ -188,7 +188,7 @@ execution_type = "exec"
 depends = ["bluetoothctl"]
 ```
 
-See [PLUGIN_SYSTEM.md](PLUGIN_SYSTEM.md) for the complete reference.
+See [PLUGINS.md](PLUGINS.md) for the complete reference.
 
 ## Comparison
 
