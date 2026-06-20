@@ -424,11 +424,21 @@ void config_load_palette(struct velo *velo)
 {
 	struct palette p;
 	palette_load(velo->palette_name, velo->darkmode, &p);
-	velo->view_theme.background_color = p.surface;
-	velo->view_theme.foreground_color = p.on_surface;
-	velo->view_theme.selection_color = palette_selection_color(&p);
-	velo->view_theme.border_color = p.outline;
-	velo->view_theme.prompt_color = p.secondary;
+
+	struct color_mapping m;
+	palette_color_mapping_load(&m);
+	velo->view_theme.background_color = palette_role_color(&p, m.background);
+	velo->view_theme.foreground_color = palette_role_color(&p, m.text);
+	velo->view_theme.selection_color  = palette_role_color(&p, m.selection);
+	velo->view_theme.selection_box    = (m.selection == ROLE_BOX);
+	velo->view_theme.border_color     = palette_role_color(&p, m.border);
+	velo->view_theme.prompt_color     = palette_role_color(&p, m.prompt);
+	velo->view_theme.divider_color    = palette_role_color(&p, m.divider);
+
+	/* Filled-selection-box mode uses the raw primary/onPrimary pair, the one
+	 * role pair M3 guarantees to contrast. */
+	velo->view_theme.selection_fill_color = p.primary;
+	velo->view_theme.selection_text_color = p.on_primary;
 }
 
 bool config_apply(struct velo *velo, const char *option, const char *value)

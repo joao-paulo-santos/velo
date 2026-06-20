@@ -25,19 +25,19 @@ Initial release of the plugin-extensible Wayland launcher.
 - `--sensitive`: password masking for `--input`
 
 ### Bundled Plugins
-- **drun** — desktop application launcher
-- **calculator** — qalc-based with persistent history
-- **opencode** — AI chat via opencode
-- **url** — URL opener
-- **tmux** — session manager (freeze/unfreeze/cold storage via tmux-fridge)
-- **hyprland** — window focus and workspace switching
-- **wifi** — connect/reconnect/forget networks
-- **theme** — switch themes for velo, kitty, waybar, hyprland
-- **enter-password** — reusable password prompt (chains with `next`)
+- **drun** - desktop application launcher
+- **calculator** - qalc-based with persistent history
+- **opencode** - AI chat via opencode
+- **url** - URL opener
+- **tmux** - session manager (freeze/unfreeze/cold storage via tmux-fridge)
+- **hyprland** - window focus and workspace switching
+- **wifi** - connect/reconnect/forget networks
+- **theme** - switch themes for velo, kitty, waybar, hyprland
+- **enter-password** - reusable password prompt (chains with `next`)
 
 ### CLI
-- `-e <plugin>` — teleport directly to plugin at startup
-- `-p <list>` — show only specified plugins as root menu
-- `-f <filter>` — filter global plugins (`all,-drun`)
-- `-t <name>` / `--theme <name>` — override theme
-- `-L` / `--list-themes` — list available themes
+- `-e <plugin>` - teleport directly to plugin at startup
+- `-p <list>` - show only specified plugins as root menu
+- `-f <filter>` - filter global plugins (`all,-drun`)
+- `-t <name>` / `--theme <name>` - override theme
+- `-L` / `--list-themes` - list available themes

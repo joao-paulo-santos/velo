@@ -20,7 +20,7 @@ List installed palettes: `velo --list-palettes` (`-L`).
 ## File format
 
 A palette is JSON with two objects, `dark` and `light` (`light` is optional
-and falls back to `dark`). Each contains six `#rrggbb` colors. No alpha —
+and falls back to `dark`). Each contains six `#rrggbb` colors. No alpha;
 transparency is set via `background-opacity` in the main config.
 
 ```json
@@ -53,7 +53,7 @@ transparency is set via `background-opacity` in the main config.
 | `primary` | Hue/saturation source for the selected-result color (see below) | active |
 | `secondary` | The prompt symbol and the input/results divider | active |
 | `outline` | Window border | active |
-| `onPrimary` | *(reserved for the optional filled-selection style)* | reserved |
+| `onPrimary` | Text on the filled selection bar (`selection-box = true`) | active |
 
 ### How the selected entry is colored
 
@@ -64,8 +64,34 @@ saturation and shifts its lightness to the value that contrasts both
 `onSurface` (body text) and `surface` (background). This guarantees a visible
 selection on every palette, in both dark and light mode.
 
-A filled selection bar (`primary` fill + `onPrimary` text) is planned as an
-optional style toggle; that is what `onPrimary` is reserved for.
+The default selection value is `derived`. To instead render the selected entry
+as a filled bar (`primary` background with `onPrimary` text, the one role
+pair guaranteed to contrast), set `"selection": "box"` in your
+_palette_color_mapping.json_ (see below). This is the only thing `onPrimary`
+is used for.
+
+### Customizing which role is used where
+
+If you disagree with velo's choices, `~/.config/velo/palette_color_mapping.json`
+remaps each render slot to a palette role:
+
+```json
+{
+  "background": "surface",
+  "text": "onSurface",
+  "selection": "derived",
+  "border": "outline",
+  "prompt": "secondary",
+  "divider": "secondary"
+}
+```
+
+Slots: `background`, `text`, `selection`, `border`, `prompt`, `divider`.
+Roles: `surface`, `onSurface`, `primary`, `onPrimary`, `secondary`, `outline`,
+plus the specials `derived` (the derived selection color) and `box` (a filled
+primary/onPrimary bar); the specials are only meaningful for `selection`. The
+file is optional; missing or invalid entries fall back to the hardcoded
+defaults shown above.
 
 ## Defaults & fallback
 

@@ -1,0 +1,8 @@
+{
+  "background": "surface",
+  "text": "onSurface",
+  "selection": "derived",
+  "border": "outline",
+  "prompt": "secondary",
+  "divider": "secondary"
+}

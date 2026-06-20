@@ -37,6 +37,41 @@ bool palette_load(const char *name, bool darkmode, struct palette *out);
  * saturation and optimising its lightness. See doc/palette.md. */
 struct color palette_selection_color(const struct palette *p);
 
+/*
+ * Optional user overrides for which palette role fills each render slot.
+ * A small JSON file (~/.config/velo/palette_color_mapping.json) maps slot
+ * names to role names; the hardcoded default below is used when the file is
+ * absent or invalid. See doc/palette.md.
+ */
+enum palette_role {
+	ROLE_SURFACE,
+	ROLE_ON_SURFACE,
+	ROLE_PRIMARY,
+	ROLE_ON_PRIMARY,
+	ROLE_SECONDARY,
+	ROLE_OUTLINE,
+	ROLE_DERIVED,   /* special: the derived selection color */
+	ROLE_BOX,       /* special: filled bar (primary bg + onPrimary text) */
+	ROLE_INVALID,
+};
+
+struct color_mapping {
+	enum palette_role background;
+	enum palette_role text;
+	enum palette_role selection;
+	enum palette_role border;
+	enum palette_role prompt;
+	enum palette_role divider;
+};
+
+/* Resolve a role to a color from a loaded palette. ROLE_DERIVED returns the
+ * derived selection color. */
+struct color palette_role_color(const struct palette *p, enum palette_role r);
+
+/* Load the user palette_color_mapping.json, overlaying valid entries on the
+ * hardcoded default. Returns true if a file was found and parsed. */
+bool palette_color_mapping_load(struct color_mapping *out);
+
 /* Fill *out with the hardcoded breeze-dark fallback used when no palette is
  * configured or a palette file cannot be read. */
 void palette_apply_fallback(struct palette *out);

@@ -1,41 +1,62 @@
-# velo config
+# Config for velo
+#
+# Copy this file to ~/.config/velo/config and get customising.
+# Every option is listed below: active ones set, optional ones commented out.
+# Any option can also be passed as a long flag, e.g.  velo --font-size 14.
 
-palette = "catppuccin-lavender"
+### Colors
+# Colors come from a palette JSON. See doc/palette.md for the format and how
+# to create your own. List installed palettes with: velo --list-palettes
+# palette = filename in ~/.config/velo/palettes/ minus the .json suffix.
+palette = breeze
+# darkmode = true uses the palette's dark variant; false uses light.
 darkmode = true
-
-autosize = true
-
-# Font settings
-font = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
-font-size = 14
-
-# Background transparency (0.1-1.0)
+# Background transparency, 0.1 (ghost) to 1.0 (opaque).
 background-opacity = 0.85
+# To remap which palette role (surface/onSurface/primary/...) fills which render
+# slot (background/text/selection/border/prompt/divider), edit
+# palette_color_mapping.json next to this file. That is also how you enable the
+# filled selection bar: set "selection": "box" there. See doc/palette.md.
 
-# Window dimensions
+### Fonts
+font = Sans
+font-size = 24
+
+### Window
 width = 600
 height = 400
-
-# Border and corners
 border-width = 2
-corner-radius = 3
-
-# Padding
+corner-radius = 0
+# Inner padding on all sides. Override per side with the options below.
 padding = 16
+# padding-top = 16
+# padding-bottom = 16
+# padding-left = 16
+# padding-right = 16
 
-# Positioning
-# anchor = center
-# margin-top = 0
-# margin-bottom = 0
-# margin-left = 0
-# margin-right = 0
+### Sizing
+# Dynamic window height: grow/shrink to fit the visible results (Spotlight-like).
+# When enabled, anchor is forced to top and the window is centered vertically.
+autosize = true
 
-# Output (monitor to display on)
-# output =
+### Positioning
+# Restrict to a named output. Default: first detected output.
+# output = eDP-1
+# Where on screen to anchor. One of: top-left, top, top-right, right,
+# bottom-right, bottom, bottom-left, left, center.
+anchor = center
+margin-top = 0
+margin-bottom = 0
+margin-left = 0
+margin-right = 0
 
-# Prompt
+### Text
 prompt-text = "> "
 
-# Plugins - comma-separated list
-# Use "all" to enable all, "-name" to exclude
+### Plugins
+# Comma-separated list of plugins to show. Use "all" to enable every plugin,
+# prefix a name with "-" to exclude it.
+#   plugins = all
+#   plugins = all,-drun
+#   plugins = apps,windows
 plugins = all

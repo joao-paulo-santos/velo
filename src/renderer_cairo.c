@@ -164,7 +164,7 @@ static void draw_background_and_clip(struct cairo_priv *priv, cairo_t *cr,
 	/* Clear outside the rounded rectangle to transparency.
 	 * Use priv->scaled_height (full buffer) rather than the parameter,
 	 * so in autosize mode the area below the dynamic height is also
-	 * cleared — the border stroke extends border_width pixels past
+	 * cleared; the border stroke extends border_width pixels past
 	 * the path, which would otherwise be visible on the taller buffer. */
 	cairo_rectangle(cr, 0, 0, priv->scaled_width + 1, priv->scaled_height + 1);
 	cairo_set_source_rgba(cr, 0, 0, 0, 1);
@@ -363,7 +363,7 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 	 * regardless of whether results exist (prevents autosize jitter). */
 	cairo_translate(cr, 0, 2);
 	if (num_results > 0) {
-		struct color sep_color = theme->prompt_color;
+		struct color sep_color = theme->divider_color;
 		cairo_set_source_rgba(cr, sep_color.r, sep_color.g, sep_color.b, sep_color.a);
 		cairo_set_line_width(cr, 1);
 		cairo_move_to(cr, 0, 0);
@@ -390,9 +390,22 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 		if (size_overflows(priv, cr, logical_rect.height)) break;
 
 		if (i == state->selection) {
-			struct color sel_color = theme->selection_color;
-			cairo_set_source_rgba(cr, sel_color.r, sel_color.g, sel_color.b, sel_color.a);
-			pango_cairo_show_layout(cr, priv->pango_layout);
+			if (theme->selection_box) {
+				/* Filled bar: primary fill behind the row, onPrimary text on top. */
+				struct color fill = theme->selection_fill_color;
+				cairo_save(cr);
+				cairo_set_source_rgba(cr, fill.r, fill.g, fill.b, fill.a);
+				cairo_rectangle(cr, 0, 0, priv->clip_width, logical_rect.height);
+				cairo_fill(cr);
+				cairo_restore(cr);
+				struct color tc = theme->selection_text_color;
+				cairo_set_source_rgba(cr, tc.r, tc.g, tc.b, tc.a);
+				pango_cairo_show_layout(cr, priv->pango_layout);
+			} else {
+				struct color sel_color = theme->selection_color;
+				cairo_set_source_rgba(cr, sel_color.r, sel_color.g, sel_color.b, sel_color.a);
+				pango_cairo_show_layout(cr, priv->pango_layout);
+			}
 		} else {
 			render_text_themed(cr, priv, result, &theme->result_theme, &ink_rect, &logical_rect);
 		}

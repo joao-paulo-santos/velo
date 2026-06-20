@@ -10,7 +10,7 @@ Config file location: _$XDG_CONFIG_HOME/velo/config_
 
 Options can also be passed as CLI flags (see _velo_(1)).
 Values are: strings, integers, booleans, or percentages (e.g. *50%*).
-Color values live in palettes, not the config — see _PALETTES_ below.
+Color values live in palettes, not the config. See _PALETTES_ below.
 
 # WINDOW
 
@@ -82,7 +82,7 @@ Color values live in palettes, not the config — see _PALETTES_ below.
 
 # PALETTES
 
-Colors are defined by palettes — small JSON files with a dark and a light
+Colors are defined by palettes: small JSON files with a dark and a light
 variant, stored in _$XDG_CONFIG_HOME/velo/palettes/<name>.json_. A palette
 holds six color roles (surface, onSurface, primary, onPrimary, secondary,
 outline); of these surface, onSurface, primary, and outline are rendered
@@ -97,7 +97,9 @@ format and how to create your own.
 	Use the palette's dark (*true*) or light (*false*) variant.
 	Default: *true*.
 
-	List installed palettes with *velo --list-palettes*.
+	List installed palettes with *velo --list-palettes*. The palette format
+	and how to remap roles (including the optional filled selection bar) via
+	_palette_color_mapping.json_ are documented in the palette docs.
 
 # PLUGINS
 

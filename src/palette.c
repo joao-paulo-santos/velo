@@ -21,6 +21,9 @@ void palette_apply_fallback(struct palette *out)
 	out->outline    = hex_to_color("#707d8a");
 }
 
+static char *read_file(const char *path);
+static char *config_dir(void);
+
 static float color_dist(struct color a, struct color b)
 {
 	float dr = a.r - b.r;
@@ -107,9 +110,100 @@ struct color palette_selection_color(const struct palette *p)
 	return best;
 }
 
-/* Resolve the user palettes dir: $XDG_CONFIG_HOME/velo/palettes, or
- * ~/.config/velo/palettes when XDG_CONFIG_HOME is unset. NULL if HOME is. */
-static char *palette_dir(void)
+/* Hardcoded default role mapping (used when palette_color_mapping.json is
+ * absent or invalid). Encodes the render decisions documented in doc/palette.md. */
+static const struct color_mapping MAPPING_DEFAULT = {
+	.background = ROLE_SURFACE,
+	.text = ROLE_ON_SURFACE,
+	.selection = ROLE_DERIVED,
+	.border = ROLE_OUTLINE,
+	.prompt = ROLE_SECONDARY,
+	.divider = ROLE_SECONDARY,
+};
+
+static enum palette_role role_from_name(const char *name)
+{
+	if (strcmp(name, "surface") == 0) return ROLE_SURFACE;
+	if (strcmp(name, "onSurface") == 0) return ROLE_ON_SURFACE;
+	if (strcmp(name, "primary") == 0) return ROLE_PRIMARY;
+	if (strcmp(name, "onPrimary") == 0) return ROLE_ON_PRIMARY;
+	if (strcmp(name, "secondary") == 0) return ROLE_SECONDARY;
+	if (strcmp(name, "outline") == 0) return ROLE_OUTLINE;
+	if (strcmp(name, "derived") == 0) return ROLE_DERIVED;
+	if (strcmp(name, "box") == 0) return ROLE_BOX;
+	return ROLE_INVALID;
+}
+
+struct color palette_role_color(const struct palette *p, enum palette_role r)
+{
+	switch (r) {
+	case ROLE_SURFACE:    return p->surface;
+	case ROLE_ON_SURFACE: return p->on_surface;
+	case ROLE_PRIMARY:    return p->primary;
+	case ROLE_ON_PRIMARY: return p->on_primary;
+	case ROLE_SECONDARY:  return p->secondary;
+	case ROLE_OUTLINE:    return p->outline;
+	case ROLE_DERIVED:    return palette_selection_color(p);
+	case ROLE_BOX:        return p->primary;
+	default:              return p->primary;
+	}
+}
+
+bool palette_color_mapping_load(struct color_mapping *out)
+{
+	*out = MAPPING_DEFAULT;
+
+	char *cd = config_dir();
+	if (cd == NULL) {
+		return false;
+	}
+	char path[512];
+	snprintf(path, sizeof(path), "%s/palette_color_mapping.json", cd);
+	free(cd);
+
+	char *json = read_file(path);
+	if (json == NULL) {
+		return false;
+	}
+
+	bool loaded = false;
+	json_parser_t p;
+	json_parser_init(&p, json);
+	if (json_object_begin(&p)) {
+		char key[64];
+		bool has_more;
+		while (json_object_next(&p, key, sizeof(key), &has_more) && has_more) {
+			char val[32];
+			if (json_parse_string(&p, val, sizeof(val))) {
+				enum palette_role r = role_from_name(val);
+				if (r != ROLE_INVALID) {
+					if (strcmp(key, "background") == 0) out->background = r;
+					else if (strcmp(key, "text") == 0) out->text = r;
+					else if (strcmp(key, "selection") == 0) out->selection = r;
+					else if (strcmp(key, "border") == 0) out->border = r;
+					else if (strcmp(key, "prompt") == 0) out->prompt = r;
+					else if (strcmp(key, "divider") == 0) out->divider = r;
+					/* unknown slot keys are ignored */
+				} else {
+					log_error("palette_color_mapping: unknown role \"%s\" for \"%s\"\n", val, key);
+				}
+			} else {
+				json_skip_value(&p);
+			}
+			if (json_peek_char(&p, ',')) {
+				json_expect_char(&p, ',');
+			}
+		}
+		loaded = true;
+	}
+
+	free(json);
+	return loaded;
+}
+
+/* Resolve the user velo config dir: $XDG_CONFIG_HOME/velo, or ~/.config/velo
+ * when XDG_CONFIG_HOME is unset. NULL if HOME is. */
+static char *config_dir(void)
 {
 	const char *base = getenv("XDG_CONFIG_HOME");
 	char *fallback = NULL;
@@ -123,10 +217,24 @@ static char *palette_dir(void)
 		snprintf(fallback, len, "%s/.config", home);
 		base = fallback;
 	}
-	size_t len = strlen(base) + strlen("/velo/palettes") + 1;
+	size_t len = strlen(base) + strlen("/velo") + 1;
 	char *dir = xmalloc(len);
-	snprintf(dir, len, "%s/velo/palettes", base);
+	snprintf(dir, len, "%s/velo", base);
 	free(fallback);
+	return dir;
+}
+
+/* The user palettes dir: <config_dir>/palettes. */
+static char *palette_dir(void)
+{
+	char *cd = config_dir();
+	if (cd == NULL) {
+		return NULL;
+	}
+	size_t len = strlen(cd) + strlen("/palettes") + 1;
+	char *dir = xmalloc(len);
+	snprintf(dir, len, "%s/palettes", cd);
+	free(cd);
 	return dir;
 }
 

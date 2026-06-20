@@ -25,7 +25,12 @@ velo_data_dir = join_paths(get_option('prefix'), get_option('datadir'), 'velo')
 add_project_arguments('-DVELO_DATA_DIR="@0@"'.format(velo_data_dir), language : 'c')
 
 install_data(
-  'doc/config',
+  'config/config',
+  install_dir: velo_data_dir
+)
+
+install_data(
+  'config/palette_color_mapping.json',
   install_dir: velo_data_dir
 )
 

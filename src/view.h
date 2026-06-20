@@ -29,9 +29,13 @@ struct view_theme {
 	struct color background_color;
 	struct color foreground_color;
 	struct color selection_color;
+	struct color selection_fill_color;
+	struct color selection_text_color;
 	struct color border_color;
 	struct color prompt_color;
+	struct color divider_color;
 	float background_opacity;
+	bool selection_box;
 
 	char font_name[VIEW_MAX_FONT_NAME];
 	uint32_t font_size;

@@ -1825,7 +1825,7 @@ static void read_clipboard(struct velo *velo)
 
 /*
  * Calculate the ideal window height for autosize mode.
- * Sizes to exact row boundaries — no partial-row gap at the bottom.
+ * Sizes to exact row boundaries; no partial-row gap at the bottom.
  */
 static uint32_t autosize_calc_height(struct velo *velo)
 {
@@ -1890,8 +1890,11 @@ int main(int argc, char *argv[])
 		.background_opacity = 0.85f,
 		.foreground_color = {0.988f, 0.988f, 0.988f, 1.0f},
 		.selection_color = {0.239f, 0.682f, 0.914f, 1.0f},
+		.selection_fill_color = {0.239f, 0.682f, 0.914f, 1.0f},
+		.selection_text_color = {0.078f, 0.086f, 0.094f, 1.0f},
 		.border_color = {0.439f, 0.490f, 0.541f, 1.0f},
 		.prompt_color = {0.114f, 0.600f, 0.953f, 1.0f},
+		.divider_color = {0.114f, 0.600f, 0.953f, 1.0f},
 	},
 		.view_state = {
 			.prompt = "> ",
