@@ -69,6 +69,15 @@ as a filled bar (`primary` background with `onPrimary` text, the one role
 pair guaranteed to contrast), set `selection-box = true` in your config. This
 is the only thing `onPrimary` is used for.
 
+### Color derivation (readability safety net)
+
+The derived selection color above is one instance of velo's general rule:
+when a palette role would be invisible against the background (common with
+flat or monochrome palettes), velo adjusts it. This is governed by the
+`color-derivation` config option (default `true`). Set `color-derivation =
+false` to disable all such adjustments and use palette roles verbatim; any
+slot mapped to `derived` then falls back to raw `primary`.
+
 ### Customizing which role is used where
 
 If you disagree with velo's choices, `~/.config/velo/palette_color_mapping.json`

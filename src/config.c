@@ -409,6 +409,10 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 		velo->darkmode = (strcasecmp(value, "true") == 0
 				|| strcasecmp(value, "yes") == 0
 				|| strcasecmp(value, "1") == 0);
+	} else if (strcasecmp(option, "color-derivation") == 0) {
+		velo->color_derivation = (strcasecmp(value, "true") == 0
+				|| strcasecmp(value, "yes") == 0
+				|| strcasecmp(value, "1") == 0);
 	} else if (strcasecmp(option, "selection-box") == 0) {
 		velo->view_theme.selection_box = (strcasecmp(value, "true") == 0
 				|| strcasecmp(value, "yes") == 0
@@ -424,6 +428,18 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 	return !err;
 }
 
+/* Resolve a render slot's role to a color, honouring the color-derivation
+ * master toggle. When derivation is off, the special ROLE_DERIVED degrades to
+ * raw primary (no readability adjustment); otherwise it resolves to the
+ * derived selection color. All other roles pass through unchanged. */
+static struct color resolve_role(const struct palette *p, enum palette_role r, bool derive)
+{
+	if (r == ROLE_DERIVED && !derive) {
+		return p->primary;
+	}
+	return palette_role_color(p, r);
+}
+
 void config_load_palette(struct velo *velo)
 {
 	struct palette p;
@@ -431,12 +447,13 @@ void config_load_palette(struct velo *velo)
 
 	struct color_mapping m;
 	palette_color_mapping_load(&m);
-	velo->view_theme.background_color = palette_role_color(&p, m.background);
-	velo->view_theme.foreground_color = palette_role_color(&p, m.text);
-	velo->view_theme.selection_color  = palette_role_color(&p, m.selection);
-	velo->view_theme.border_color     = palette_role_color(&p, m.border);
-	velo->view_theme.prompt_color     = palette_role_color(&p, m.prompt);
-	velo->view_theme.divider_color    = palette_role_color(&p, m.divider);
+	bool derive = velo->color_derivation;
+	velo->view_theme.background_color = resolve_role(&p, m.background, derive);
+	velo->view_theme.foreground_color = resolve_role(&p, m.text, derive);
+	velo->view_theme.selection_color  = resolve_role(&p, m.selection, derive);
+	velo->view_theme.border_color     = resolve_role(&p, m.border, derive);
+	velo->view_theme.prompt_color     = resolve_role(&p, m.prompt, derive);
+	velo->view_theme.divider_color    = resolve_role(&p, m.divider, derive);
 
 	/* Filled-selection-box mode uses the raw primary/onPrimary pair, the one
 	 * role pair M3 guarantees to contrast. */

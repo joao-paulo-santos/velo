@@ -118,6 +118,7 @@ struct velo {
 	char target_output_name[MAX_OUTPUT_NAME_LEN];
 	char palette_name[64];
 	bool darkmode;
+	bool color_derivation;
 };
 
 struct plugin;

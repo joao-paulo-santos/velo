@@ -101,6 +101,12 @@ format and how to create your own.
 	Render the selected entry as a filled bar (primary background with
 	onPrimary text) instead of colored text. Default: *false*.
 
+*color-derivation* <bool>
+	When *true* (default), velo adjusts colors that would be invisible
+	against the background (e.g. the selection tint on flat/monochrome
+	palettes). Set to *false* to use palette roles verbatim; slots mapped
+	to *derived* then fall back to raw *primary*.
+
 	List installed palettes with *velo --list-palettes*. The palette format
 	and how to remap roles via _palette_color_mapping.json_ are documented
 	in the palette docs.

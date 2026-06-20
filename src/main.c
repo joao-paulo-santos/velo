@@ -1902,6 +1902,7 @@ int main(int argc, char *argv[])
 	.autosize = true,
 	.palette_name = "breeze",
 	.darkmode = true,
+	.color_derivation = true,
 	.anchor =  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT

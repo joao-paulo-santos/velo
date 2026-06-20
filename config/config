@@ -11,6 +11,10 @@
 palette = breeze
 # darkmode = true uses the palette's dark variant; false uses light.
 darkmode = true
+# Auto-adjust colors for readability (default). When on, velo derives colors
+# that would otherwise be invisible against the background (e.g. the selection
+# tint on flat/monochrome palettes). Turn off to use palette roles verbatim.
+color-derivation = true
 # Background transparency, 0.1 (ghost) to 1.0 (opaque).
 background-opacity = 0.8
 # Render the selected entry as a filled bar (primary background + onPrimary
