@@ -20,7 +20,7 @@ background-opacity = 0.85
 
 ### Fonts
 font = Sans
-font-size = 24
+font-size = 14
 
 ### Window
 width = 600
