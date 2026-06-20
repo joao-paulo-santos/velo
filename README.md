@@ -79,18 +79,40 @@ means user-typed or pasted text is evaluated by the shell. Keep `template` and
 
 ## Install
 
-### Dependencies (Arch)
+### Dependencies
+
+**Arch:**
 
 ```sh
 sudo pacman -S freetype2 harfbuzz cairo pango wayland libxkbcommon meson scdoc wayland-protocols
 ```
 
-### Build
+**Debian/Ubuntu:**
+
+```sh
+sudo apt install build-essential libfreetype-dev libharfbuzz-dev libcairo2-dev \
+  libpango1.0-dev libwayland-dev libxkbcommon-dev wayland-protocols meson scdoc
+```
+
+### Build and install
 
 ```sh
 meson setup build
 ninja -C build
+sudo meson install -C build
 ```
+
+This installs the `velo` binary plus the man page, app icon, palettes, plugins, and default config (under the install prefix, `/usr/local` by default).
+
+### First run
+
+Just run it:
+
+```sh
+velo
+```
+
+On first launch velo copies its bundled config, palettes, and plugins into `~/.config/velo/`, so it works out of the box. Bind it to a key in your compositor (see the Hyprland example below).
 
 ## Usage
 
@@ -197,7 +219,7 @@ autosize = true
 plugins = all
 ```
 
-See `doc/config` for all supported options and `doc/palette.md` for the palette format.
+See `doc/velo.5.scd` (or `man velo`) for all supported options and `doc/palette.md` for the palette format.
 
 ## Credits
 

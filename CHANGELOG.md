@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.1] - 2026-06-20
 
 Initial release of the plugin-extensible Wayland launcher.
 
