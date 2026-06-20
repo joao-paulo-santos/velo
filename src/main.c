@@ -1062,6 +1062,22 @@ bool navigate_to_plugin(struct velo *velo, struct plugin *target, struct value_d
 			target->label_field, target->value_field,
 			target->template, target->as, &new_level->results);
 		nav_results_copy(&new_level->backup_results, &new_level->results);
+		new_level->live_apply_palette = target->live_apply_palette;
+		if (target->live_apply_palette) {
+			/* Snapshot the current palette so ESC can restore it, and start
+			 * the highlight on it so entering the list doesn't jump themes. */
+			snprintf(new_level->saved_palette, sizeof(new_level->saved_palette),
+					"%s", velo->palette_name);
+			uint32_t i = 0;
+			struct nav_result *r;
+			wl_list_for_each(r, &new_level->results, link) {
+				if (strcmp(r->label, velo->palette_name) == 0) {
+					new_level->selection = i;
+					break;
+				}
+				i++;
+			}
+		}
 		if (target->context_name[0]) {
 			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
 		}
@@ -2210,6 +2226,22 @@ int main(int argc, char *argv[])
 
 		/* Handle any events we read. */
 		wl_display_dispatch_pending(velo.wl_display);
+
+		/* Live palette preview: while browsing a live-apply palette list,
+		 * keep the running instance's palette in sync with the highlight. */
+		if (velo.nav_current && velo.nav_current->mode == SELECTION_SELECT
+				&& velo.nav_current->live_apply_palette) {
+			uint32_t idx = velo.view_state.selection + velo.view_state.first_result;
+			if (idx < velo.view_state.results.count) {
+				const char *sel = velo.view_state.results.buf[idx].string;
+				if (strcmp(sel, velo.palette_name) != 0) {
+					snprintf(velo.palette_name, sizeof(velo.palette_name),
+							"%s", sel);
+					config_load_palette(&velo);
+					velo.window.surface.redraw = true;
+				}
+			}
+		}
 
 		if (velo.window.surface.redraw) {
 			if (velo.autosize) {

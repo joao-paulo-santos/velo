@@ -60,6 +60,7 @@ struct plugin {
 
 	char eval_cmd[NAV_CMD_MAX];
 	char copy_cmd[NAV_CMD_MAX];
+	bool live_apply_palette;
 
 	bool is_builtin;
 	plugin_populate_fn populate_fn;

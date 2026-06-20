@@ -94,6 +94,9 @@ struct nav_level {
 	char preview_result[NAV_VALUE_MAX];
 	bool preview_dirty;
 	uint32_t preview_input_time;
+
+	bool live_apply_palette;
+	char saved_palette[NAV_NAME_MAX];
 };
 
 struct value_dict *dict_create(void);

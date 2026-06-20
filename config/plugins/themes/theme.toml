@@ -10,6 +10,7 @@ type = "select"
 list_cmd = "ls -1 ~/.config/velo/palettes/ | sed 's/\\.json$//'"
 format = "lines"
 as = "palette"
+live_apply_palette = true
 template = "sed -i 's/^palette = .*/palette = \"{palette}\"/' \"$HOME/.config/velo/config\""
 execution_type = "exec"
 ---

@@ -386,6 +386,8 @@ static int parse_toml_file(const char *path)
 			snprintf(plugin->eval_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
 		} else if (strcmp(key, "copy_cmd") == 0) {
 			snprintf(plugin->copy_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "live_apply_palette") == 0) {
+			plugin->live_apply_palette = parse_bool_value(value);
 		}
 	}
 

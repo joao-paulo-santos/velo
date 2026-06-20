@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "config.h"
 #include "input.h"
 #include "log.h"
 #include "nav.h"
@@ -160,6 +161,11 @@ static void nav_pop_and_restore(struct velo *velo)
 	}
 	
 	struct nav_level *current = velo->nav_current;
+
+	if (current->live_apply_palette && current->saved_palette[0]) {
+		snprintf(velo->palette_name, sizeof(velo->palette_name), "%s", current->saved_palette);
+		config_load_palette(velo);
+	}
 
 	wl_list_remove(&current->link);
 	nav_level_destroy(current);
