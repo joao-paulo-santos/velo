@@ -7,6 +7,12 @@ A fast, plugin-extensible launcher for Wayland, combining [tofi](https://github.
 
 No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 
+<div align="center">
+
+![velo themes: dark and light palettes, switchable live](readme-assets/velo-themes.mp4)
+
+</div>
+
 ## Features
 
 - **TOML plugin system**: all functionality is a plugin: app launcher, calculator, tmux manager, WiFi connector, and more
@@ -21,6 +27,30 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 - **Fuzzy search**: results sorted by match quality (contiguous > spread out)
 - **Dependency checking**: plugins auto-hide if required binaries are missing
 - **Fast**: inherits tofi's performance (~2-6ms startup)
+
+<div align="center">
+
+![Recursive submenus and multiple plugin types, all from TOML](readme-assets/velo-menus.mp4)
+
+</div>
+
+## Pipe modes
+
+velo doubles as a dmenu/zenity replacement in your scripts: feed it a list on stdin and it prints your selection to stdout, or prompt for text and masked passwords the same way.
+
+<div align="center">
+
+![Pipe modes: --pick from a list and --input --sensitive, used from a shell](readme-assets/velo-pipes.mp4)
+
+</div>
+
+```sh
+# Pick from a list (dmenu replacement), pipe the choice onward
+printf '%s\n' apple banana cherry | velo --pick | xargs -I{} echo "chose {}"
+
+# Text or password entry (zenity --entry / --password replacement)
+velo --input --sensitive --prompt-text "Password: "
+```
 
 ## Bundled Plugins
 
