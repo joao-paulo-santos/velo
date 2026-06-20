@@ -1552,18 +1552,45 @@ int main(int argc, char *argv[])
 	velo.nav_current = NULL;
 	velo.base_dict = dict_create();
 	wl_list_init(&velo.base_results);
-	
+
+	/*
+	 * Modes that never touch plugins: the --pick/--input pipe modes and the
+	 * early-exit --list-palettes/--help. Detect them now so we can skip
+	 * parsing ~20 plugin TOMLs they don't use. plugin_init() still runs
+	 * (it's cheap) so plugin_destroy() is safe on the empty list later.
+	 */
+	bool needs_plugins = true;
+	for (int i = 1; i < argc; i++) {
+		const char *a = argv[i];
+		if (!strcmp(a, "--pick") || !strcmp(a, "--input")
+				|| !strcmp(a, "--list-palettes") || !strcmp(a, "--help")) {
+			needs_plugins = false;
+			break;
+		}
+		if (a[0] == '-' && a[1] != '-' && a[1] != '\0') {
+			for (const char *c = a + 1; *c; c++) {
+				if (*c == 'P' || *c == 'I' || *c == 'L' || *c == 'h') {
+					needs_plugins = false;
+					break;
+				}
+			}
+			if (!needs_plugins) break;
+		}
+	}
+
 	config_seed_if_needed();
 	plugin_init();
-	char *config_dir = get_user_config_dir();
-	if (config_dir) {
-		char plugin_dir[512];
-		snprintf(plugin_dir, sizeof(plugin_dir), "%s/plugins", config_dir);
-		log_debug("Loading plugins from: %s\n", plugin_dir);
-		plugin_load_directory(plugin_dir);
-		free(config_dir);
+	if (needs_plugins) {
+		char *config_dir = get_user_config_dir();
+		if (config_dir) {
+			char plugin_dir[512];
+			snprintf(plugin_dir, sizeof(plugin_dir), "%s/plugins", config_dir);
+			log_debug("Loading plugins from: %s\n", plugin_dir);
+			plugin_load_directory(plugin_dir);
+			free(config_dir);
+		}
+		log_debug("Loaded %zu plugins.\n", plugin_count());
 	}
-	log_debug("Loaded %zu plugins.\n", plugin_count());
 	
 	const char *entry_plugin = NULL;
 	const char *plugin_list = NULL;
