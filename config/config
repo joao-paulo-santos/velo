@@ -8,7 +8,7 @@
 # Colors come from a palette JSON. See doc/palette.md for the format and how
 # to create your own. List installed palettes with: velo --list-palettes
 # palette = filename in ~/.config/velo/palettes/ minus the .json suffix.
-palette = "breeze"
+palette = "adw"
 # darkmode = true uses the palette's dark variant; false uses light.
 darkmode = true
 # Auto-adjust colors for readability (default). When on, velo derives colors
@@ -22,7 +22,7 @@ background-opacity = 0.8
 selection-box = false
 # Highlight the matched characters in each result (default off). The highlight
 # color is derived for readability; remap it via palette_color_mapping.json.
-match-highlight = false
+match-highlight = true
 # To remap which palette role (surface/onSurface/primary/...) fills which render
 # slot (background/text/selection/border/prompt/divider), edit
 # palette_color_mapping.json next to this file. See doc/palette.md.

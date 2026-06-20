@@ -1,7 +1,7 @@
 name = "calculator"
 display_label = "Calculator"
 display_prefix = ""
-context_name = "Calculator"
+prompt = "="
 type = "preview"
 global = true
 teleport = true
