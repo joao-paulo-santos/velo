@@ -7,7 +7,9 @@ A fast, plugin-extensible launcher for Wayland, combining [tofi](https://github.
 
 No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 
-![velo themes: dark and light palettes, switchable live](readme-assets/velo-themes.mp4)
+
+https://github.com/user-attachments/assets/706b73c9-1a95-4b31-aedc-ba8ab19c76f6
+
 
 ## Features
 
@@ -24,13 +26,17 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 - **Dependency checking**: plugins auto-hide if required binaries are missing
 - **Fast**: inherits tofi's performance (~2-6ms startup)
 
-![Recursive submenus and multiple plugin types, all from TOML](readme-assets/velo-menus.mp4)
+
+https://github.com/user-attachments/assets/b4b2547f-d906-4ccb-b006-c063f5fdc78e
+
 
 ## Pipe modes
 
 velo doubles as a dmenu/zenity replacement in your scripts: feed it a list on stdin and it prints your selection to stdout, or prompt for text and masked passwords the same way.
 
-![Pipe modes: --pick from a list and --input --sensitive, used from a shell](readme-assets/velo-pipes.mp4)
+
+https://github.com/user-attachments/assets/a31f94d4-7b23-487c-b1ea-432ad7a6d18f
+
 
 ```sh
 # Pick from a list (dmenu replacement), pipe the choice onward
