@@ -417,6 +417,10 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 		velo->view_theme.selection_box = (strcasecmp(value, "true") == 0
 				|| strcasecmp(value, "yes") == 0
 				|| strcasecmp(value, "1") == 0);
+	} else if (strcasecmp(option, "match-highlight") == 0) {
+		velo->view_theme.match_highlight = (strcasecmp(value, "true") == 0
+				|| strcasecmp(value, "yes") == 0
+				|| strcasecmp(value, "1") == 0);
 	} else if (strcasecmp(option, "autosize") == 0) {
 		if (strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0 || strcasecmp(value, "1") == 0) {
 			velo->autosize = true;
@@ -428,16 +432,36 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 	return !err;
 }
 
+/* Which derivation to apply when a slot is mapped to "derived" and the
+ * color-derivation toggle is on: KIND_SELECTION derives from primary,
+ * KIND_MATCH from secondary (used by the match color, prompt, and divider). */
+enum slot_kind {
+	KIND_OTHER,
+	KIND_SELECTION,
+	KIND_MATCH,
+};
+
 /* Resolve a render slot's role to a color, honouring the color-derivation
- * master toggle. When derivation is off, the special ROLE_DERIVED degrades to
- * raw primary (no readability adjustment); otherwise it resolves to the
- * derived selection color. All other roles pass through unchanged. */
-static struct color resolve_role(const struct palette *p, enum palette_role r, bool derive)
+ * master toggle. When derivation is off, ROLE_DERIVED degrades to a raw role
+ * (primary for the selection slot, secondary otherwise); when on it resolves to
+ * the slot-appropriate derived color. All other roles pass through unchanged. */
+static struct color resolve_role(const struct palette *p, enum palette_role r,
+		bool derive, enum slot_kind kind)
 {
-	if (r == ROLE_DERIVED && !derive) {
-		return p->primary;
+	if (r != ROLE_DERIVED) {
+		return palette_role_color(p, r);
 	}
-	return palette_role_color(p, r);
+	if (!derive) {
+		return (kind == KIND_SELECTION) ? p->primary : p->secondary;
+	}
+	switch (kind) {
+	case KIND_SELECTION:
+		return palette_selection_color(p);
+	case KIND_MATCH:
+		return palette_match_color(p);
+	default:
+		return palette_role_color(p, r);
+	}
 }
 
 void config_load_palette(struct velo *velo)
@@ -448,12 +472,13 @@ void config_load_palette(struct velo *velo)
 	struct color_mapping m;
 	palette_color_mapping_load(&m);
 	bool derive = velo->color_derivation;
-	velo->view_theme.background_color = resolve_role(&p, m.background, derive);
-	velo->view_theme.foreground_color = resolve_role(&p, m.text, derive);
-	velo->view_theme.selection_color  = resolve_role(&p, m.selection, derive);
-	velo->view_theme.border_color     = resolve_role(&p, m.border, derive);
-	velo->view_theme.prompt_color     = resolve_role(&p, m.prompt, derive);
-	velo->view_theme.divider_color    = resolve_role(&p, m.divider, derive);
+	velo->view_theme.background_color = resolve_role(&p, m.background, derive, KIND_OTHER);
+	velo->view_theme.foreground_color = resolve_role(&p, m.text, derive, KIND_OTHER);
+	velo->view_theme.selection_color  = resolve_role(&p, m.selection, derive, KIND_SELECTION);
+	velo->view_theme.border_color     = resolve_role(&p, m.border, derive, KIND_OTHER);
+	velo->view_theme.prompt_color     = resolve_role(&p, m.prompt, derive, KIND_MATCH);
+	velo->view_theme.divider_color    = resolve_role(&p, m.divider, derive, KIND_MATCH);
+	velo->view_theme.match_color      = resolve_role(&p, m.match, derive, KIND_MATCH);
 
 	/* Filled-selection-box mode uses the raw primary/onPrimary pair, the one
 	 * role pair M3 guarantees to contrast. */

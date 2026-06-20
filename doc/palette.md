@@ -51,7 +51,7 @@ transparency is set via `background-opacity` in the main config.
 | `surface` | Window background | active |
 | `onSurface` | Body text: the input line and unselected results | active |
 | `primary` | Hue/saturation source for the selected-result color (see below) | active |
-| `secondary` | The prompt symbol and the input/results divider | active |
+| `secondary` | Base for the prompt symbol, the results divider, and the match color | active |
 | `outline` | Window border | active |
 | `onPrimary` | Text on the filled selection bar (`selection-box = true`) | active |
 
@@ -68,6 +68,29 @@ The default selection value is `derived`. To instead render the selected entry
 as a filled bar (`primary` background with `onPrimary` text, the one role
 pair guaranteed to contrast), set `selection-box = true` in your config. This
 is the only thing `onPrimary` is used for.
+
+### Match highlighting
+
+Set `match-highlight = true` to recolour, in every result, the characters that
+match the current input. The highlight color is the `match` render slot (see
+below): by default `derived`, which keeps `secondary`'s hue and saturation and
+shifts its lightness to stay visible against the background, distinct from the
+body text, distinct from the selected-row text color, and visible against the
+filled selection bar (`selection-box` mode). It is governed by the same
+`color-derivation` toggle as the selection color; with derivation off,
+`derived` falls back to raw `secondary`.
+
+Computing the highlight only runs for the visible rows and only when the option
+is on, so it has no cost when disabled.
+
+### Accent colors (prompt, divider)
+
+The prompt symbol and the results divider sit directly on the background, so a
+palette whose `secondary` is close to `surface` makes them nearly invisible.
+Their slots default to `derived` and use the same secondary-based derivation as
+the match color, so they stay readable on every palette. Gated by
+`color-derivation`; with derivation off, `derived` falls back to raw
+`secondary`.
 
 ### Color derivation (readability safety net)
 
@@ -89,16 +112,18 @@ remaps each render slot to a palette role:
   "text": "onSurface",
   "selection": "derived",
   "border": "outline",
-  "prompt": "secondary",
-  "divider": "secondary"
+  "prompt": "derived",
+  "divider": "derived",
+  "match": "derived"
 }
 ```
 
-Slots: `background`, `text`, `selection`, `border`, `prompt`, `divider`.
-Roles: `surface`, `onSurface`, `primary`, `onPrimary`, `secondary`, `outline`,
-plus the special `derived` (the derived selection color, only meaningful for
-`selection`). The file is optional; missing or invalid entries fall back to
-the hardcoded defaults shown above.
+Slots: `background`, `text`, `selection`, `border`, `prompt`, `divider`,
+`match`. Roles: `surface`, `onSurface`, `primary`, `onPrimary`, `secondary`,
+`outline`, plus the special `derived`, which resolves per slot: from `primary`
+(maximum contrast) for `selection`, from `secondary` (maximum contrast) for
+`match`, `prompt`, and `divider`. The file is optional; missing or invalid
+entries fall back to the hardcoded defaults shown above.
 
 ## Defaults & fallback
 

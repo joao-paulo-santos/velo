@@ -102,10 +102,17 @@ format and how to create your own.
 	onPrimary text) instead of colored text. Default: *false*.
 
 *color-derivation* <bool>
-	When *true* (default), velo adjusts colors that would be invisible
-	against the background (e.g. the selection tint on flat/monochrome
-	palettes). Set to *false* to use palette roles verbatim; slots mapped
-	to *derived* then fall back to raw *primary*.
+	When *true* (default), velo derives colors that would otherwise be
+	invisible: the selection color from *primary*, and the match, prompt,
+	and divider colors from *secondary*, each shifted to maximum contrast
+	against the background. Set to *false* to use palette roles verbatim;
+	slots mapped to *derived* then fall back to raw *primary* (selection)
+	or *secondary* (match/prompt/divider).
+
+*match-highlight* <bool>
+	Recolour the matched characters in each result to the match color (the
+	*match* slot in _palette_color_mapping.json_, *derived* by default).
+	Computed only for visible rows, only when enabled. Default: *false*.
 
 	List installed palettes with *velo --list-palettes*. The palette format
 	and how to remap roles via _palette_color_mapping.json_ are documented

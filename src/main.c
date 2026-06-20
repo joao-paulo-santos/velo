@@ -1898,6 +1898,7 @@ int main(int argc, char *argv[])
 	},
 		.view_state = {
 			.prompt = "> ",
+			.algorithm = MATCHING_ALGORITHM_FUZZY,
 		},
 	.autosize = true,
 	.palette_name = "breeze",

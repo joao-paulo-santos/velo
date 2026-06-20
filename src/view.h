@@ -3,6 +3,7 @@
 
 #include "color.h"
 #include "string_vec.h"
+#include "matching.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <uchar.h>
@@ -34,8 +35,10 @@ struct view_theme {
 	struct color border_color;
 	struct color prompt_color;
 	struct color divider_color;
+	struct color match_color;
 	float background_opacity;
 	bool selection_box;
+	bool match_highlight;
 
 	char font_name[VIEW_MAX_FONT_NAME];
 	uint32_t font_size;
@@ -61,6 +64,7 @@ struct view_state {
 	uint32_t input_utf8_length;
 	uint32_t cursor_position;
 	bool sensitive;
+	enum matching_algorithm algorithm;
 	
 	struct string_ref_vec results;
 	struct string_ref_vec commands;

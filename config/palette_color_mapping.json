@@ -3,6 +3,7 @@
   "text": "onSurface",
   "selection": "derived",
   "border": "outline",
-  "prompt": "secondary",
-  "divider": "secondary"
+  "prompt": "derived",
+  "divider": "derived",
+  "match": "derived"
 }

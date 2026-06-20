@@ -110,6 +110,46 @@ struct color palette_selection_color(const struct palette *p)
 	return best;
 }
 
+/*
+ * Derived match-highlight color. Match glyphs sit inline in the body text and
+ * must read against the background (surface), stand out from the body text
+ * (on_surface), stay distinct from the selected-row text color (the derived
+ * selection color), and stay visible against the filled selection bar, whose
+ * background is raw primary (selection-box mode). Keep secondary's hue and
+ * saturation and scan lightness for the value that maximises the minimum of
+ * those four distances. Mirrors palette_selection_color's approach.
+ */
+struct color palette_match_color(const struct palette *p)
+{
+	struct color avoid_sel = palette_selection_color(p);
+
+	float h, s, l;
+	rgb_to_hsl(p->secondary, &h, &s, &l);
+
+	struct color best = p->secondary;
+	float best_score = -1.0f;
+	for (int i = 20; i <= 80; i++) {
+		float cl = i / 100.0f;
+		struct color cand = hsl_to_rgb(h, s, cl);
+		float dt = color_dist(cand, p->on_surface);
+		float db = color_dist(cand, p->surface);
+		float ds = color_dist(cand, avoid_sel);
+		float df = color_dist(cand, p->primary);
+		float min = (dt < db) ? dt : db;
+		if (ds < min) {
+			min = ds;
+		}
+		if (df < min) {
+			min = df;
+		}
+		if (min > best_score) {
+			best_score = min;
+			best = cand;
+		}
+	}
+	return best;
+}
+
 /* Hardcoded default role mapping (used when palette_color_mapping.json is
  * absent or invalid). Encodes the render decisions documented in doc/palette.md. */
 static const struct color_mapping MAPPING_DEFAULT = {
@@ -117,8 +157,9 @@ static const struct color_mapping MAPPING_DEFAULT = {
 	.text = ROLE_ON_SURFACE,
 	.selection = ROLE_DERIVED,
 	.border = ROLE_OUTLINE,
-	.prompt = ROLE_SECONDARY,
-	.divider = ROLE_SECONDARY,
+	.prompt = ROLE_DERIVED,
+	.divider = ROLE_DERIVED,
+	.match = ROLE_DERIVED,
 };
 
 static enum palette_role role_from_name(const char *name)
@@ -181,6 +222,7 @@ bool palette_color_mapping_load(struct color_mapping *out)
 					else if (strcmp(key, "border") == 0) out->border = r;
 					else if (strcmp(key, "prompt") == 0) out->prompt = r;
 					else if (strcmp(key, "divider") == 0) out->divider = r;
+					else if (strcmp(key, "match") == 0) out->match = r;
 					/* unknown slot keys are ignored */
 				} else {
 					log_error("palette_color_mapping: unknown role \"%s\" for \"%s\"\n", val, key);

@@ -37,6 +37,14 @@ bool palette_load(const char *name, bool darkmode, struct palette *out);
  * saturation and optimising its lightness. See doc/palette.md. */
 struct color palette_selection_color(const struct palette *p);
 
+/* Derive a match-highlight color: secondary's hue and saturation with a
+ * lightness chosen to contrast the body text (on_surface), the background
+ * (surface), the selected-row text color (selection), and the filled selection
+ * bar's background (primary), so matched glyphs stay visible in the body, on
+ * the selected row, and in selection-box mode. Also used for the prompt and
+ * divider. See doc/palette.md. */
+struct color palette_match_color(const struct palette *p);
+
 /*
  * Optional user overrides for which palette role fills each render slot.
  * A small JSON file (~/.config/velo/palette_color_mapping.json) maps slot
@@ -61,6 +69,7 @@ struct color_mapping {
 	enum palette_role border;
 	enum palette_role prompt;
 	enum palette_role divider;
+	enum palette_role match;
 };
 
 /* Resolve a role to a color from a loaded palette. ROLE_DERIVED returns the

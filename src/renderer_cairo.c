@@ -33,11 +33,46 @@ static void rounded_rectangle(cairo_t *cr, uint32_t width, uint32_t height, uint
 	cairo_close_path(cr);
 }
 
+/* Build a Pango attribute list that recolours the matched byte ranges of
+ * result to the match color. Returns NULL when match-highlight is off, there
+ * is no input, or the result does not match the input; the caller unrefs any
+ * non-NULL return. Only the matched glyphs are affected; the rest of the row
+ * keeps the source color set by the caller. */
+static PangoAttrList *build_match_attrs(
+		const struct view_theme *theme,
+		const struct view_state *state,
+		const char *result)
+{
+	if (!theme->match_highlight || state->input_utf8_length == 0) {
+		return NULL;
+	}
+	struct match_positions pos;
+	if (!match_positions(state->algorithm, state->input_utf8, result, &pos)) {
+		return NULL;
+	}
+	if (pos.n == 0) {
+		return NULL;
+	}
+	PangoAttrList *attrs = pango_attr_list_new();
+	struct color mc = theme->match_color;
+	guint16 r = (guint16)(mc.r * 65535.0f);
+	guint16 g = (guint16)(mc.g * 65535.0f);
+	guint16 b = (guint16)(mc.b * 65535.0f);
+	for (size_t k = 0; k < pos.n; k++) {
+		PangoAttribute *a = pango_attr_foreground_new(r, g, b);
+		a->start_index = (guint)pos.ranges[k].start;
+		a->end_index = (guint)pos.ranges[k].end;
+		pango_attr_list_insert(attrs, a);
+	}
+	return attrs;
+}
+
 static void render_text_themed(
 		cairo_t *cr,
 		struct cairo_priv *priv,
 		const char *text,
 		const struct text_theme *theme,
+		PangoAttrList *attrs,
 		PangoRectangle *ink_rect,
 		PangoRectangle *logical_rect)
 {
@@ -45,6 +80,7 @@ static void render_text_themed(
 	cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
 
 	pango_layout_set_text(priv->pango_layout, text, -1);
+	pango_layout_set_attributes(priv->pango_layout, attrs);
 	pango_cairo_update_layout(cr, priv->pango_layout);
 	pango_cairo_show_layout(cr, priv->pango_layout);
 
@@ -333,7 +369,7 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 
 	PangoRectangle ink_rect, logical_rect;
 
-	render_text_themed(cr, priv, state->prompt, &theme->prompt_theme, &ink_rect, &logical_rect);
+	render_text_themed(cr, priv, state->prompt, &theme->prompt_theme, NULL, &ink_rect, &logical_rect);
 	cairo_translate(cr, logical_rect.width + logical_rect.x, 0);
 
 	if (state->input_utf8_length == 0) {
@@ -389,6 +425,8 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 
 		if (size_overflows(priv, cr, logical_rect.height)) break;
 
+		PangoAttrList *attrs = build_match_attrs(theme, state, result);
+
 		if (i == state->selection) {
 			if (theme->selection_box) {
 				/* Filled bar: primary fill behind the row, onPrimary text on top. */
@@ -400,14 +438,20 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 				cairo_restore(cr);
 				struct color tc = theme->selection_text_color;
 				cairo_set_source_rgba(cr, tc.r, tc.g, tc.b, tc.a);
+				pango_layout_set_attributes(priv->pango_layout, attrs);
 				pango_cairo_show_layout(cr, priv->pango_layout);
 			} else {
 				struct color sel_color = theme->selection_color;
 				cairo_set_source_rgba(cr, sel_color.r, sel_color.g, sel_color.b, sel_color.a);
+				pango_layout_set_attributes(priv->pango_layout, attrs);
 				pango_cairo_show_layout(cr, priv->pango_layout);
 			}
 		} else {
-			render_text_themed(cr, priv, result, &theme->result_theme, &ink_rect, &logical_rect);
+			render_text_themed(cr, priv, result, &theme->result_theme, attrs, &ink_rect, &logical_rect);
+		}
+
+		if (attrs) {
+			pango_attr_list_unref(attrs);
 		}
 
 		if (i == 0) {

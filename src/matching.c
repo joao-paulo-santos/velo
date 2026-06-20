@@ -299,3 +299,182 @@ int32_t compute_score(int32_t jump, bool first_char, const char *restrict match)
 
 	return score;
 }
+
+/* ------------------------------------------------------------------ */
+/* Match-highlight position extraction. Mirrors the scoring algorithms */
+/* above but records which bytes of str were matched, instead of a     */
+/* score. Only the renderer calls these, and only for visible rows.    */
+/* ------------------------------------------------------------------ */
+
+static void match_positions_add(struct match_positions *out, size_t start, size_t end)
+{
+	if (out->n < MATCH_RANGE_MAX) {
+		out->ranges[out->n].start = start;
+		out->ranges[out->n].end = end;
+		out->n++;
+	}
+}
+
+/* Advance nchars UTF-8 characters from p and return the resulting pointer. */
+static const char *utf8_advance_chars(const char *p, size_t nchars)
+{
+	for (size_t i = 0; i < nchars; i++) {
+		p = utf8_next_char(p);
+	}
+	return p;
+}
+
+static bool simple_positions(const char *patterns, const char *str, struct match_positions *out)
+{
+	bool all = true;
+	char *saveptr = NULL;
+	char *tmp = utf8_normalize(patterns);
+	char *word = strtok_r(tmp, " ", &saveptr);
+	while (word != NULL) {
+		char *c = utf8_strcasestr(str, word);
+		if (c == NULL) {
+			all = false;
+		} else {
+			size_t start = (size_t)(c - str);
+			size_t nchars = utf8_strlen(word);
+			const char *e = utf8_advance_chars(c, nchars);
+			match_positions_add(out, start, (size_t)(e - str));
+		}
+		word = strtok_r(NULL, " ", &saveptr);
+	}
+	free(tmp);
+	return all;
+}
+
+static bool prefix_positions(const char *patterns, const char *str, struct match_positions *out)
+{
+	bool all = true;
+	char *saveptr = NULL;
+	char *tmp = utf8_normalize(patterns);
+	char *word = strtok_r(tmp, " ", &saveptr);
+	while (word != NULL) {
+		char *c = utf8_strcasestr(str, word);
+		if (c != str) {
+			all = false;
+		} else {
+			size_t nchars = utf8_strlen(word);
+			const char *e = utf8_advance_chars(str, nchars);
+			match_positions_add(out, 0, (size_t)(e - str));
+		}
+		word = strtok_r(NULL, " ", &saveptr);
+	}
+	free(tmp);
+	return all;
+}
+
+/*
+ * Position-recording variant of fuzzy_match. Threads a cumulative score and a
+ * scratch path down the recursion; at the base case (full pattern matched) it
+ * snapshots the path whenever a new best score is found. str_base never changes
+ * and lets us record absolute byte offsets into the original string. Reuses
+ * compute_score() so rankings match the scoring path exactly.
+ */
+static void fuzzy_pos_recurse(const char *pattern, const char *str, const char *str_base,
+		int32_t cum_score, bool first_match_only, bool first_char,
+		size_t *path, size_t depth,
+		size_t *best_path, size_t *best_depth, int32_t *best_score)
+{
+	if (*pattern == '\0') {
+		if (cum_score > *best_score) {
+			*best_score = cum_score;
+			*best_depth = depth;
+			for (size_t i = 0; i < depth; i++) {
+				best_path[i] = path[i];
+			}
+		}
+		return;
+	}
+
+	const char *match = str;
+	uint32_t search = utf8_to_utf32(pattern);
+
+	while ((match = utf8_strcasechr(match, search)) != NULL) {
+		int32_t jump = 0;
+		for (const char *tmp = str; tmp != match; tmp = utf8_next_char(tmp)) {
+			jump++;
+		}
+		path[depth] = (size_t)(match - str_base);
+		fuzzy_pos_recurse(utf8_next_char(pattern), utf8_next_char(match),
+				str_base,
+				cum_score + compute_score(jump, first_char, match),
+				first_match_only, false,
+				path, depth + 1, best_path, best_depth, best_score);
+		match = utf8_next_char(match);
+		if (first_match_only) {
+			break;
+		}
+	}
+}
+
+static bool fuzzy_positions(const char *pattern, const char *str, struct match_positions *out)
+{
+	if (*pattern == '\0') {
+		return true;
+	}
+	const size_t slen = utf8_strlen(str);
+	const size_t plen = utf8_strlen(pattern);
+	if (slen < plen) {
+		return false;
+	}
+
+	int32_t base = (int32_t)(slen - plen) * -1; /* unmatched-letter penalty */
+	bool first_match_only = slen > 100;
+
+	size_t path[256];
+	size_t best_path[256];
+	size_t best_depth = 0;
+	int32_t best_score = INT32_MIN;
+
+	fuzzy_pos_recurse(pattern, str, str, base, first_match_only, true,
+			path, 0, best_path, &best_depth, &best_score);
+
+	if (best_score == INT32_MIN) {
+		return false;
+	}
+	for (size_t i = 0; i < best_depth; i++) {
+		size_t b = best_path[i];
+		const char *p = str + b;
+		const char *nx = utf8_next_char(p);
+		match_positions_add(out, b, (size_t)(nx - str));
+	}
+	return true;
+}
+
+static bool fuzzy_positions_words(const char *patterns, const char *str, struct match_positions *out)
+{
+	bool all = true;
+	char *saveptr = NULL;
+	char *tmp = utf8_normalize(patterns);
+	char *word = strtok_r(tmp, " ", &saveptr);
+	while (word != NULL) {
+		if (!fuzzy_positions(word, str, out)) {
+			all = false;
+		}
+		word = strtok_r(NULL, " ", &saveptr);
+	}
+	free(tmp);
+	return all;
+}
+
+bool match_positions(enum matching_algorithm algorithm,
+		const char *restrict patterns,
+		const char *restrict str,
+		struct match_positions *out)
+{
+	out->n = 0;
+	switch (algorithm) {
+		case MATCHING_ALGORITHM_NORMAL:
+			return simple_positions(patterns, str, out);
+		case MATCHING_ALGORITHM_PREFIX:
+			return prefix_positions(patterns, str, out);
+		case MATCHING_ALGORITHM_FUZZY:
+			return fuzzy_positions_words(patterns, str, out);
+		default:
+			return false;
+	}
+}
