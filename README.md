@@ -35,6 +35,24 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 | **theme** | list | Switch the velo palette and kitty/waybar/hyprland themes |
 | **enter-password** | input | Reusable password prompt (chains with `next`) |
 
+## Plugin safety
+
+Plugins are plain TOML files, but they run **arbitrary shell commands** as your
+user: `list_cmd` runs when a list is shown, `template` runs on submit, and
+`eval_cmd`/`copy_cmd` run for `preview` plugins. Installing a plugin is
+therefore equivalent to running an unknown shell script: a malicious or buggy
+plugin can read, modify, or delete your files, or do anything else your user
+can.
+
+Only install plugins from sources you trust, and read the TOML before copying
+it into `~/.config/velo/plugins/`. Treat a downloaded plugin the same way you
+treat `curl ... | sh` or a script from the internet.
+
+A related note: `{input}` and `{key}` values are substituted into commands
+raw, with no shell escaping. This is how `qalc '{input}'` works, but it also
+means user-typed or pasted text is evaluated by the shell. Keep `template` and
+`eval_cmd` to commands you control.
+
 ## Install
 
 ### Dependencies (Arch)
