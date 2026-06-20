@@ -12,7 +12,7 @@ palette = breeze
 # darkmode = true uses the palette's dark variant; false uses light.
 darkmode = true
 # Background transparency, 0.1 (ghost) to 1.0 (opaque).
-background-opacity = 0.85
+background-opacity = 0.8
 # Render the selected entry as a filled bar (primary background + onPrimary
 # text) instead of colored text.
 selection-box = false
@@ -25,10 +25,10 @@ font = Sans
 font-size = 14
 
 ### Window
-width = 600
-height = 400
+width = 400
+height = 600
 border-width = 2
-corner-radius = 0
+corner-radius = 8
 # Inner padding on all sides. Override per side with the options below.
 padding = 16
 # padding-top = 16
