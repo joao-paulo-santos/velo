@@ -130,7 +130,6 @@ static enum palette_role role_from_name(const char *name)
 	if (strcmp(name, "secondary") == 0) return ROLE_SECONDARY;
 	if (strcmp(name, "outline") == 0) return ROLE_OUTLINE;
 	if (strcmp(name, "derived") == 0) return ROLE_DERIVED;
-	if (strcmp(name, "box") == 0) return ROLE_BOX;
 	return ROLE_INVALID;
 }
 
@@ -144,7 +143,6 @@ struct color palette_role_color(const struct palette *p, enum palette_role r)
 	case ROLE_SECONDARY:  return p->secondary;
 	case ROLE_OUTLINE:    return p->outline;
 	case ROLE_DERIVED:    return palette_selection_color(p);
-	case ROLE_BOX:        return p->primary;
 	default:              return p->primary;
 	}
 }

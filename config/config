@@ -13,10 +13,12 @@ palette = breeze
 darkmode = true
 # Background transparency, 0.1 (ghost) to 1.0 (opaque).
 background-opacity = 0.85
+# Render the selected entry as a filled bar (primary background + onPrimary
+# text) instead of colored text.
+selection-box = false
 # To remap which palette role (surface/onSurface/primary/...) fills which render
 # slot (background/text/selection/border/prompt/divider), edit
-# palette_color_mapping.json next to this file. That is also how you enable the
-# filled selection bar: set "selection": "box" there. See doc/palette.md.
+# palette_color_mapping.json next to this file. See doc/palette.md.
 
 ### Fonts
 font = Sans

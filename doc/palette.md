@@ -66,9 +66,8 @@ selection on every palette, in both dark and light mode.
 
 The default selection value is `derived`. To instead render the selected entry
 as a filled bar (`primary` background with `onPrimary` text, the one role
-pair guaranteed to contrast), set `"selection": "box"` in your
-_palette_color_mapping.json_ (see below). This is the only thing `onPrimary`
-is used for.
+pair guaranteed to contrast), set `selection-box = true` in your config. This
+is the only thing `onPrimary` is used for.
 
 ### Customizing which role is used where
 
@@ -88,10 +87,9 @@ remaps each render slot to a palette role:
 
 Slots: `background`, `text`, `selection`, `border`, `prompt`, `divider`.
 Roles: `surface`, `onSurface`, `primary`, `onPrimary`, `secondary`, `outline`,
-plus the specials `derived` (the derived selection color) and `box` (a filled
-primary/onPrimary bar); the specials are only meaningful for `selection`. The
-file is optional; missing or invalid entries fall back to the hardcoded
-defaults shown above.
+plus the special `derived` (the derived selection color, only meaningful for
+`selection`). The file is optional; missing or invalid entries fall back to
+the hardcoded defaults shown above.
 
 ## Defaults & fallback
 

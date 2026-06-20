@@ -51,7 +51,6 @@ enum palette_role {
 	ROLE_SECONDARY,
 	ROLE_OUTLINE,
 	ROLE_DERIVED,   /* special: the derived selection color */
-	ROLE_BOX,       /* special: filled bar (primary bg + onPrimary text) */
 	ROLE_INVALID,
 };
 

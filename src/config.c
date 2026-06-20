@@ -409,6 +409,10 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 		velo->darkmode = (strcasecmp(value, "true") == 0
 				|| strcasecmp(value, "yes") == 0
 				|| strcasecmp(value, "1") == 0);
+	} else if (strcasecmp(option, "selection-box") == 0) {
+		velo->view_theme.selection_box = (strcasecmp(value, "true") == 0
+				|| strcasecmp(value, "yes") == 0
+				|| strcasecmp(value, "1") == 0);
 	} else if (strcasecmp(option, "autosize") == 0) {
 		if (strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0 || strcasecmp(value, "1") == 0) {
 			velo->autosize = true;
@@ -430,7 +434,6 @@ void config_load_palette(struct velo *velo)
 	velo->view_theme.background_color = palette_role_color(&p, m.background);
 	velo->view_theme.foreground_color = palette_role_color(&p, m.text);
 	velo->view_theme.selection_color  = palette_role_color(&p, m.selection);
-	velo->view_theme.selection_box    = (m.selection == ROLE_BOX);
 	velo->view_theme.border_color     = palette_role_color(&p, m.border);
 	velo->view_theme.prompt_color     = palette_role_color(&p, m.prompt);
 	velo->view_theme.divider_color    = palette_role_color(&p, m.divider);

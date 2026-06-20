@@ -97,9 +97,13 @@ format and how to create your own.
 	Use the palette's dark (*true*) or light (*false*) variant.
 	Default: *true*.
 
+*selection-box* <bool>
+	Render the selected entry as a filled bar (primary background with
+	onPrimary text) instead of colored text. Default: *false*.
+
 	List installed palettes with *velo --list-palettes*. The palette format
-	and how to remap roles (including the optional filled selection bar) via
-	_palette_color_mapping.json_ are documented in the palette docs.
+	and how to remap roles via _palette_color_mapping.json_ are documented
+	in the palette docs.
 
 # PLUGINS
 
