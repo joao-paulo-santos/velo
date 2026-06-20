@@ -9,8 +9,8 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 
 ## Features
 
-- **TOML plugin system**: all functionality is a plugin: app launcher, calculator, AI chat, tmux manager, WiFi connector, and more
-- **5 plugin types**: `list` (menus), `select` (dynamic lists), `input` (text prompts), `feedback` (interactive loops), `exec` (immediate actions)
+- **TOML plugin system**: all functionality is a plugin: app launcher, calculator, tmux manager, WiFi connector, and more
+- **5 plugin types**: `list` (menus), `select` (dynamic lists), `input` (text prompts), `preview` (live result, copy on Enter), `exec` (immediate actions)
 - **Stack-based navigation**: arbitrary nesting depth, ESC always pops one level
 - **Dictionary flow**: values accumulate through the nav stack via `{key}` template substitution
 - **Plugin chaining**: `next` forwards to another plugin, `return` passes values back to parent
@@ -28,8 +28,7 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 |--------|------|-------------|
 | **drun** | select | Desktop application launcher |
 | **url** | input | Open URLs with xdg-open |
-| **calculator** | feedback | Calculator via qalc with persistent history |
-| **opencode** | feedback | AI chat via opencode |
+| **calculator** | preview | Calculator via qalc (live preview) |
 | **tmux** | list | Session manager: attach, close, new, freeze, unfreeze |
 | **hyprland** | list | Window focus, workspace switching |
 | **wifi** | list | Connect, reconnect, forget networks |

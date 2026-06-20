@@ -21,7 +21,7 @@ typedef enum {
 	SELECTION_INPUT,
 	SELECTION_SELECT,
 	SELECTION_PLUGIN,
-	SELECTION_FEEDBACK,
+	SELECTION_PREVIEW,
 } selection_type_t;
 
 typedef enum {
@@ -54,12 +54,6 @@ struct nav_result {
 	char value[NAV_VALUE_MAX];
 	char source_plugin[NAV_NAME_MAX];
 	struct action_def action;
-};
-
-struct feedback_entry {
-	struct wl_list link;
-	bool is_user;
-	char content[NAV_VALUE_MAX];
 };
 
 struct nav_level {
@@ -96,13 +90,10 @@ struct nav_level {
 	char display_prompt[NAV_PROMPT_MAX];
 
 	char eval_cmd[NAV_CMD_MAX];
-	char display_input[NAV_TEMPLATE_MAX];
-	char display_result[NAV_TEMPLATE_MAX];
-	bool show_input;
-	int history_limit;
-	bool persist_history;
-	char history_name[NAV_NAME_MAX];
-	bool feedback_loading;
+	char copy_cmd[NAV_CMD_MAX];
+	char preview_result[NAV_VALUE_MAX];
+	bool preview_dirty;
+	uint32_t preview_input_time;
 };
 
 struct value_dict *dict_create(void);
@@ -115,11 +106,6 @@ struct nav_result *nav_result_create(void);
 void nav_result_destroy(struct nav_result *result);
 void nav_results_destroy(struct wl_list *results);
 void nav_results_copy(struct wl_list *dest, struct wl_list *src);
-
-struct feedback_entry *feedback_entry_create(void);
-void feedback_entry_destroy(struct feedback_entry *entry);
-void feedback_entries_destroy(struct wl_list *entries);
-void feedback_history_save(struct nav_level *level);
 
 struct nav_level *nav_level_create(selection_type_t mode, struct value_dict *dict);
 void nav_level_destroy(struct nav_level *level);

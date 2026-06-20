@@ -84,13 +84,6 @@ struct velo {
 		uint32_t next;
 		bool active;
 	} repeat;
-	struct {
-		pid_t pid;
-		int fd;
-		uint32_t start_time;
-		bool active;
-		int loading_frame;
-	} feedback_process;
 
 	struct wl_list nav_stack;
 	struct nav_level *nav_current;

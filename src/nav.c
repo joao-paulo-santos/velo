@@ -143,10 +143,6 @@ struct nav_level *nav_level_create(selection_type_t mode, struct value_dict *dic
 	level->input_length = 0;
 	level->selection = 0;
 	level->first_result = 0;
-	level->show_input = true;
-	level->history_limit = 20;
-	level->persist_history = false;
-	level->feedback_loading = false;
 	wl_list_init(&level->results);
 	wl_list_init(&level->backup_results);
 	return level;
@@ -160,42 +156,9 @@ void nav_level_destroy(struct nav_level *level)
 
 	dict_destroy(level->dict);
 
-	if (level->mode == SELECTION_FEEDBACK) {
-		feedback_entries_destroy(&level->results);
-		feedback_entries_destroy(&level->backup_results);
-	} else {
-		nav_results_destroy(&level->results);
-		nav_results_destroy(&level->backup_results);
-	}
+	nav_results_destroy(&level->results);
+	nav_results_destroy(&level->backup_results);
 	free(level);
-}
-
-struct feedback_entry *feedback_entry_create(void)
-{
-	struct feedback_entry *entry = xcalloc(1, sizeof(*entry));
-	entry->is_user = false;
-	entry->content[0] = '\0';
-	return entry;
-}
-
-void feedback_entry_destroy(struct feedback_entry *entry)
-{
-	if (entry) {
-		free(entry);
-	}
-}
-
-void feedback_entries_destroy(struct wl_list *entries)
-{
-	if (!entries || entries->prev == NULL || entries->next == NULL) {
-		return;
-	}
-
-	struct feedback_entry *entry, *tmp;
-	wl_list_for_each_safe(entry, tmp, entries, link) {
-		wl_list_remove(&entry->link);
-		feedback_entry_destroy(entry);
-	}
 }
 
 char *template_resolve(const char *template, struct value_dict *dict)

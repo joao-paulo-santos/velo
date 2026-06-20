@@ -15,7 +15,7 @@ typedef enum {
 	PLUGIN_LIST,
 	PLUGIN_SELECT,
 	PLUGIN_INPUT,
-	PLUGIN_FEEDBACK,
+	PLUGIN_PREVIEW,
 	PLUGIN_EXEC,
 } plugin_type_t;
 
@@ -59,12 +59,7 @@ struct plugin {
 	bool teleport;
 
 	char eval_cmd[NAV_CMD_MAX];
-	char display_input[NAV_TEMPLATE_MAX];
-	char display_result[NAV_TEMPLATE_MAX];
-	bool show_input;
-	int history_limit;
-	bool persist_history;
-	char history_name[NAV_NAME_MAX];
+	char copy_cmd[NAV_CMD_MAX];
 
 	bool is_builtin;
 	plugin_populate_fn populate_fn;

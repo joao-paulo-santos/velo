@@ -121,9 +121,6 @@ _$XDG_CONFIG_HOME/velo/config_
 _$XDG_CONFIG_HOME/velo/plugins/_
 	Plugin directory. Any *\*.toml* file in any subdirectory is loaded.
 
-_$XDG_CONFIG_HOME/velo/history/_
-	Feedback history files (when *persist_history = true*).
-
 # SEE ALSO
 
 _velo_(5)

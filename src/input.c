@@ -3,6 +3,7 @@
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include "input.h"
 #include "log.h"
@@ -159,11 +160,7 @@ static void nav_pop_and_restore(struct velo *velo)
 	}
 	
 	struct nav_level *current = velo->nav_current;
-	
-	if (current->mode == SELECTION_FEEDBACK) {
-		feedback_history_save(current);
-	}
-	
+
 	wl_list_remove(&current->link);
 	nav_level_destroy(current);
 	
@@ -209,14 +206,29 @@ static void nav_pop_and_restore(struct velo *velo)
 	velo->window.surface.redraw = true;
 }
 
+/* Monotonic milliseconds, matching main.c's gettime_ms so preview timestamps
+ * set here are comparable to the debounce check in the event loop. */
+static uint32_t now_ms(void)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	return (uint32_t)(t.tv_sec * 1000u + t.tv_nsec / 1000000u);
+}
+
 static void update_level_input(struct nav_level *level, struct view_state *state)
 {
-	if (!level || (level->mode != SELECTION_INPUT && level->mode != SELECTION_FEEDBACK)) {
+	if (!level || (level->mode != SELECTION_INPUT && level->mode != SELECTION_PREVIEW)) {
 		return;
 	}
-	
+
 	strncpy(level->input_buffer, state->input_utf8, NAV_INPUT_MAX - 1);
 	level->input_length = state->input_utf8_length;
+
+	/* Any edit in a preview level arms the debounced re-evaluation. */
+	if (level->mode == SELECTION_PREVIEW) {
+		level->preview_dirty = true;
+		level->preview_input_time = now_ms();
+	}
 }
 
 void input_handle_keypress(struct velo *velo, xkb_keycode_t keycode)
@@ -276,7 +288,7 @@ void input_handle_keypress(struct velo *velo, xkb_keycode_t keycode)
 	} else if (key == KEY_PAGEDOWN) {
 		select_next_page(velo);
 	} else if (key == KEY_ESC) {
-		if (velo->nav_current && (velo->nav_current->mode == SELECTION_INPUT || velo->nav_current->mode == SELECTION_FEEDBACK)) {
+		if (velo->nav_current && (velo->nav_current->mode == SELECTION_INPUT || velo->nav_current->mode == SELECTION_PREVIEW)) {
 			nav_pop_and_restore(velo);
 		} else if (velo->view_state.input_utf32_length > 0) {
 			clear_input(velo);
@@ -410,10 +422,10 @@ void add_character(struct velo *velo, xkb_keycode_t keycode)
 		struct nav_level *level = velo->nav_current;
 		if (level) {
 			switch (level->mode) {
-			case SELECTION_INPUT:
-			case SELECTION_FEEDBACK:
-				update_level_input(level, state);
-				break;
+		case SELECTION_INPUT:
+		case SELECTION_PREVIEW:
+			update_level_input(level, state);
+			break;
 			case SELECTION_SELECT:
 			case SELECTION_PLUGIN:
 				strncpy(level->input_buffer, state->input_utf8, NAV_INPUT_MAX - 1);
@@ -468,7 +480,7 @@ void input_refresh_results(struct velo *velo)
 	if (level) {
 		switch (level->mode) {
 		case SELECTION_INPUT:
-		case SELECTION_FEEDBACK:
+		case SELECTION_PREVIEW:
 			update_level_input(level, state);
 			return;
 		case SELECTION_SELECT:

@@ -1000,17 +1000,7 @@ static void nav_pop_level(struct velo *velo)
 	}
 	
 	struct nav_level *current = velo->nav_current;
-	
-	if (current->mode == SELECTION_FEEDBACK) {
-		feedback_history_save(current);
-		
-		if (velo->feedback_process.active) {
-			kill(velo->feedback_process.pid, SIGKILL);
-			close(velo->feedback_process.fd);
-			velo->feedback_process.active = false;
-		}
-	}
-	
+
 	wl_list_remove(&current->link);
 	
 	if (wl_list_empty(&velo->nav_stack)) {
@@ -1037,8 +1027,6 @@ void update_view_state_from_level(struct velo *velo, struct nav_level *level)
 	}
 }
 
-static void feedback_history_load(struct nav_level *level);
-static void update_entry_from_feedback_level(struct velo *velo, struct nav_level *level);
 static void execute_command(const char *template, struct value_dict *dict);
 
 bool navigate_to_plugin(struct velo *velo, struct plugin *target, struct value_dict *dict)
@@ -1100,26 +1088,17 @@ bool navigate_to_plugin(struct velo *velo, struct plugin *target, struct value_d
 		state->sensitive = target->sensitive;
 		break;
 	}
-	case PLUGIN_FEEDBACK: {
-		struct nav_level *new_level = nav_level_create(SELECTION_FEEDBACK, dict);
+	case PLUGIN_PREVIEW: {
+		struct nav_level *new_level = nav_level_create(SELECTION_PREVIEW, dict);
 		strncpy(new_level->eval_cmd, target->eval_cmd, NAV_CMD_MAX - 1);
-		strncpy(new_level->display_input, target->display_input, NAV_TEMPLATE_MAX - 1);
-		strncpy(new_level->display_result, target->display_result, NAV_TEMPLATE_MAX - 1);
-		new_level->show_input = target->show_input;
-		new_level->history_limit = target->history_limit;
-		new_level->persist_history = target->persist_history;
-		if (target->history_name[0]) {
-			strncpy(new_level->history_name, target->history_name, NAV_NAME_MAX - 1);
-		} else {
-			strncpy(new_level->history_name, target->name, NAV_NAME_MAX - 1);
-		}
+		strncpy(new_level->copy_cmd, target->copy_cmd, NAV_CMD_MAX - 1);
 		if (target->context_name[0]) {
 			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s: ", target->context_name);
+		} else if (target->prompt[0]) {
+			snprintf(new_level->display_prompt, NAV_PROMPT_MAX, "%s", target->prompt);
 		}
-		wl_list_init(&new_level->results);
-		feedback_history_load(new_level);
 		nav_push_level(velo, new_level);
-		update_entry_from_feedback_level(velo, new_level);
+		update_view_state_from_level(velo, new_level);
 		break;
 	}
 	case PLUGIN_EXEC: {
@@ -1141,434 +1120,79 @@ bool navigate_to_plugin(struct velo *velo, struct plugin *target, struct value_d
 	return false;
 }
 
-#define FEEDBACK_HISTORY_DIR "/.config/velo/history/"
+#define PREVIEW_DEBOUNCE_MS 120
 
-static void feedback_history_path(char *buf, size_t size, const char *name)
+/*
+ * Synchronously evaluate the preview command for the current input and store
+ * the first line of its output as the preview result. Runs on the main thread
+ * only after the input has been quiet for PREVIEW_DEBOUNCE_MS, so it suits fast
+ * local commands (qalc, encode, local lookups) and is deliberately not used
+ * for slow or networked ones, which would stall the UI.
+ */
+static void preview_eval(struct velo *velo, struct nav_level *level)
 {
-	const char *home = getenv("HOME");
-	snprintf(buf, size, "%s" FEEDBACK_HISTORY_DIR "%s.json", home ? home : "/tmp", name);
-}
+	if (!level->input_buffer[0] || !level->eval_cmd[0]) {
+		level->preview_result[0] = '\0';
+		string_ref_vec_destroy(&velo->view_state.results);
+		velo->view_state.results = string_ref_vec_create();
+		velo->view_state.selection = 0;
+		velo->view_state.first_result = 0;
+		velo->window.surface.redraw = true;
+		return;
+	}
 
-static void feedback_history_load(struct nav_level *level)
-{
-	if (!level->history_name[0] || !level->persist_history) {
-		return;
-	}
-	
-	char path[512];
-	feedback_history_path(path, sizeof(path), level->history_name);
-	
-	FILE *fp = fopen(path, "r");
-	if (!fp) {
-		return;
-	}
-	
-	fseek(fp, 0, SEEK_END);
-	long file_size = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	
-	char *json = xcalloc(1, file_size + 1);
-	if (fread(json, 1, file_size, fp) != (size_t)file_size) {
-		free(json);
-		fclose(fp);
-		return;
-	}
-	fclose(fp);
-	
-	json_parser_t parser;
-	json_parser_init(&parser, json);
-	
-	if (!json_object_begin(&parser)) {
-		free(json);
-		return;
-	}
-	
-	char key[64];
-	bool has_more;
-	
-	while (json_object_next(&parser, key, sizeof(key), &has_more) && has_more) {
-		if (strcmp(key, "entries") == 0) {
-			if (!json_array_begin(&parser)) break;
-			
-			bool arr_has_more;
-			while (json_array_next(&parser, &arr_has_more) && arr_has_more) {
-				if (!json_object_begin(&parser)) break;
-				
-				bool is_user = false;
-				char content[NAV_VALUE_MAX] = "";
-				bool has_is_user = false;
-				bool has_content = false;
-				
-				char obj_key[64];
-				bool obj_has_more;
-				while (json_object_next(&parser, obj_key, sizeof(obj_key), &obj_has_more) && obj_has_more) {
-					if (strcmp(obj_key, "is_user") == 0) {
-						if (json_parse_bool(&parser, &is_user)) {
-							has_is_user = true;
-						}
-					} else if (strcmp(obj_key, "content") == 0) {
-						if (json_parse_string(&parser, content, sizeof(content))) {
-							has_content = true;
-						}
-					} else {
-						json_skip_value(&parser);
-					}
-					
-					if (json_peek_char(&parser, ',')) {
-						json_expect_char(&parser, ',');
-					}
-				}
-				
-				json_object_end(&parser);
-				
-				if (has_is_user && has_content) {
-					struct feedback_entry *entry = feedback_entry_create();
-					entry->is_user = is_user;
-					strncpy(entry->content, content, NAV_VALUE_MAX - 1);
-					wl_list_insert(&level->results, &entry->link);
-				}
-				
-				if (json_peek_char(&parser, ',')) {
-					json_expect_char(&parser, ',');
-				}
-			}
-			
-			json_array_end(&parser);
-		} else {
-			json_skip_value(&parser);
-		}
-		
-		if (json_peek_char(&parser, ',')) {
-			json_expect_char(&parser, ',');
-		}
-	}
-	
-	free(json);
-}
-
-void feedback_history_save(struct nav_level *level)
-{
-	if (!level->history_name[0] || !level->persist_history) {
-		return;
-	}
-	
-	int total = 0;
-	struct feedback_entry *e;
-	wl_list_for_each(e, &level->results, link) {
-		total++;
-	}
-	
-	char path[512];
-	feedback_history_path(path, sizeof(path), level->history_name);
-	
-	char dir_path[512];
-	const char *home = getenv("HOME");
-	snprintf(dir_path, sizeof(dir_path), "%s" FEEDBACK_HISTORY_DIR, home ? home : "/tmp");
-	
-	char *mkdir_cmd = NULL;
-	if (asprintf(&mkdir_cmd, "mkdir -p '%s'", dir_path) >= 0 && mkdir_cmd) {
-		int ret = system(mkdir_cmd);
-		(void)ret;
-		free(mkdir_cmd);
-	}
-	
-	FILE *fp = fopen(path, "w");
-	if (!fp) {
-		log_error("Failed to open history file for writing: %s\n", path);
-		return;
-	}
-	
-	fprintf(fp, "{\n  \"entries\": [\n");
-	
-	struct feedback_entry *entry;
-	int to_write = (total > level->history_limit) ? level->history_limit : total;
-	int written = 0;
-	
-	wl_list_for_each_reverse(entry, &level->results, link) {
-		if (written >= to_write) break;
-		
-		char escaped[NAV_VALUE_MAX * 2];
-		json_escape_string(entry->content, escaped, sizeof(escaped));
-		fprintf(fp, "    {\"is_user\": %s, \"content\": %s}", 
-		        entry->is_user ? "true" : "false", escaped);
-		
-		written++;
-		if (written < to_write) {
-			fprintf(fp, ",");
-		}
-		fprintf(fp, "\n");
-	}
-	
-	fprintf(fp, "  ]\n}\n");
-	fclose(fp);
-}
-
-static void update_entry_from_feedback_level(struct velo *velo, struct nav_level *level)
-{
-	string_ref_vec_destroy(&velo->view_state.results);
-	velo->view_state.results = string_ref_vec_create();
-	
-	struct feedback_entry *fe;
-	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&velo->view_state.results, fe->content);
-	}
-	velo->view_state.selection = 0;
-	velo->view_state.first_result = 0;
-	if (level->display_prompt[0]) {
-		snprintf(velo->view_state.prompt, VIEW_MAX_PROMPT, "%s", level->display_prompt);
-	}
-}
-
-static void feedback_spawn_process(struct velo *velo, struct nav_level *level)
-{
-	if (velo->feedback_process.active) {
-		return;
-	}
-	
-	if (!level->input_buffer[0]) {
-		return;
-	}
-	
-	int pipefd[2];
-	if (pipe(pipefd) == -1) {
-		log_error("Failed to create pipe for feedback process\n");
-		return;
-	}
-	
 	struct value_dict *dict = dict_copy(level->dict);
 	dict_set(&dict, "input", level->input_buffer);
 	char *cmd = template_resolve(level->eval_cmd, dict);
 	dict_destroy(dict);
-	
 	if (!cmd) {
-		close(pipefd[0]);
-		close(pipefd[1]);
 		return;
 	}
-	
-	char *argv[] = {"sh", "-c", cmd, NULL};
-	char *envp[] = {NULL};
-	
-	posix_spawn_file_actions_t actions;
-	posix_spawn_file_actions_init(&actions);
-	posix_spawn_file_actions_adddup2(&actions, pipefd[1], STDOUT_FILENO);
-	posix_spawn_file_actions_addclose(&actions, pipefd[0]);
-	posix_spawn_file_actions_addclose(&actions, pipefd[1]);
-	
-	pid_t pid;
-	int spawn_result = posix_spawnp(&pid, "sh", &actions, NULL, argv, envp);
-	
-	posix_spawn_file_actions_destroy(&actions);
-	close(pipefd[1]);
+
+	FILE *fp = popen(cmd, "r");
 	free(cmd);
-	
-	if (spawn_result != 0) {
-		log_error("Failed to spawn feedback process\n");
-		close(pipefd[0]);
+	if (!fp) {
 		return;
 	}
-	
-	velo->feedback_process.pid = pid;
-	velo->feedback_process.fd = pipefd[0];
-	velo->feedback_process.start_time = gettime_ms();
-	velo->feedback_process.active = true;
-	velo->feedback_process.loading_frame = 0;
-	level->feedback_loading = true;
-	
-	if (level->show_input && level->display_input[0]) {
-		struct value_dict *input_dict = dict_copy(level->dict);
-		dict_set(&input_dict, "input", level->input_buffer);
-		char *formatted = template_resolve(level->display_input, input_dict);
-		dict_destroy(input_dict);
-		
-		if (formatted) {
-			struct feedback_entry *user_entry = feedback_entry_create();
-			user_entry->is_user = true;
-			strncpy(user_entry->content, formatted, NAV_VALUE_MAX - 1);
-			wl_list_insert(&level->results, &user_entry->link);
-			free(formatted);
-		}
-	}
-	
-	struct feedback_entry *loading_entry = feedback_entry_create();
-	loading_entry->is_user = false;
-	strcpy(loading_entry->content, ".");
-	wl_list_insert(&level->results, &loading_entry->link);
-	
-	level->input_buffer[0] = '\0';
-	level->input_length = 0;
-	
-	velo->view_state.input_utf32_length = 0;
-	velo->view_state.input_utf8_length = 0;
-	velo->view_state.input_utf8[0] = '\0';
-	velo->view_state.cursor_position = 0;
-	
-	string_ref_vec_destroy(&velo->view_state.results);
-	velo->view_state.results = string_ref_vec_create();
-	struct feedback_entry *fe;
-	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&velo->view_state.results, fe->content);
-	}
-	velo->window.surface.redraw = true;
-}
 
-#define FEEDBACK_TIMEOUT_MS (3 * 60 * 1000)
-#define FEEDBACK_BUFFER_SIZE 4096
-
-static bool is_loading_indicator(const char *content)
-{
-	return (strcmp(content, ".") == 0 || 
-	        strcmp(content, "..") == 0 || 
-	        strcmp(content, "...") == 0);
-}
-
-static void feedback_process_complete(struct velo *velo)
-{
-	struct nav_level *level = velo->nav_current;
-	if (!level || level->mode != SELECTION_FEEDBACK) {
-		velo->feedback_process.active = false;
-		return;
-	}
-	
-	level->feedback_loading = false;
-	
-	if (!wl_list_empty(&level->results)) {
-		struct feedback_entry *first = wl_container_of(level->results.next, first, link);
-		if (is_loading_indicator(first->content)) {
-			wl_list_remove(&first->link);
-			feedback_entry_destroy(first);
+	char line[NAV_VALUE_MAX];
+	if (fgets(line, sizeof(line), fp)) {
+		size_t len = strlen(line);
+		while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+			line[--len] = '\0';
 		}
-	}
-	
-	ssize_t total = 0;
-	char result[FEEDBACK_BUFFER_SIZE];
-	result[0] = '\0';
-	
-	while (total < (ssize_t)sizeof(result) - 1) {
-		ssize_t bytes = read(velo->feedback_process.fd, 
-		                     result + total, 
-		                     sizeof(result) - 1 - total);
-		if (bytes <= 0) break;
-		total += bytes;
-	}
-	result[total] = '\0';
-	
-	close(velo->feedback_process.fd);
-	
-	int status;
-	waitpid(velo->feedback_process.pid, &status, 0);
-	
-	velo->feedback_process.active = false;
-	level->feedback_loading = false;
-	
-	while (total > 0 && (result[total-1] == '\n' || result[total-1] == '\r')) {
-		result[--total] = '\0';
-	}
-	
-	if (total > 0 && level->display_result[0]) {
-		struct value_dict *dict = dict_copy(level->dict);
-		dict_set(&dict, "input", level->input_buffer);
-		dict_set(&dict, "result", result);
-		char *formatted = template_resolve(level->display_result, dict);
-		dict_destroy(dict);
-		
-		if (formatted) {
-			struct feedback_entry *result_entry = feedback_entry_create();
-			result_entry->is_user = false;
-			strncpy(result_entry->content, formatted, NAV_VALUE_MAX - 1);
-			wl_list_insert(&level->results, &result_entry->link);
-			free(formatted);
-		}
-	} else if (total > 0) {
-		struct feedback_entry *result_entry = feedback_entry_create();
-		result_entry->is_user = false;
-		strncpy(result_entry->content, result, NAV_VALUE_MAX - 1);
-		wl_list_insert(&level->results, &result_entry->link);
+		snprintf(level->preview_result, sizeof(level->preview_result), "%s", line);
 	} else {
-		struct feedback_entry *error_entry = feedback_entry_create();
-		error_entry->is_user = false;
-		strncpy(error_entry->content, "Error: no output", NAV_VALUE_MAX - 1);
-		wl_list_insert(&level->results, &error_entry->link);
+		level->preview_result[0] = '\0';
 	}
-	
-	while (wl_list_length(&level->results) > (int)level->history_limit) {
-		struct feedback_entry *last = wl_container_of(level->results.prev, last, link);
-		wl_list_remove(&last->link);
-		feedback_entry_destroy(last);
-	}
-	
-	update_entry_from_feedback_level(velo, level);
-	velo->window.surface.redraw = true;
-}
+	pclose(fp);
 
-static void feedback_process_check_timeout(struct velo *velo)
-{
-	if (!velo->feedback_process.active) {
-		return;
-	}
-	
-	uint32_t elapsed = gettime_ms() - velo->feedback_process.start_time;
-	if (elapsed >= FEEDBACK_TIMEOUT_MS) {
-		log_error("Feedback process timeout, killing\n");
-		kill(velo->feedback_process.pid, SIGKILL);
-		close(velo->feedback_process.fd);
-		
-		struct nav_level *level = velo->nav_current;
-		if (level && level->mode == SELECTION_FEEDBACK) {
-			level->feedback_loading = false;
-			
-			if (!wl_list_empty(&level->results)) {
-				struct feedback_entry *first = wl_container_of(level->results.next, first, link);
-				if (is_loading_indicator(first->content)) {
-					wl_list_remove(&first->link);
-					feedback_entry_destroy(first);
-				}
-			}
-			
-			struct feedback_entry *error_entry = feedback_entry_create();
-			error_entry->is_user = false;
-			strncpy(error_entry->content, "Error: timeout", NAV_VALUE_MAX - 1);
-			wl_list_insert(&level->results, &error_entry->link);
-			
-			update_entry_from_feedback_level(velo, level);
-			velo->window.surface.redraw = true;
-		}
-		
-		velo->feedback_process.active = false;
-	}
-}
-
-static void feedback_update_loading_animation(struct velo *velo)
-{
-	if (!velo->feedback_process.active) {
-		return;
-	}
-	
-	struct nav_level *level = velo->nav_current;
-	if (!level || level->mode != SELECTION_FEEDBACK) {
-		return;
-	}
-	
-	if (wl_list_empty(&level->results)) {
-		return;
-	}
-	
-	struct feedback_entry *first = wl_container_of(level->results.next, first, link);
-	if (!is_loading_indicator(first->content)) {
-		return;
-	}
-	
-	velo->feedback_process.loading_frame = (velo->feedback_process.loading_frame + 1) % 3;
-	const char *frames[] = {".", "..", "..."};
-	strcpy(first->content, frames[velo->feedback_process.loading_frame]);
-	
 	string_ref_vec_destroy(&velo->view_state.results);
 	velo->view_state.results = string_ref_vec_create();
-	struct feedback_entry *fe;
-	wl_list_for_each(fe, &level->results, link) {
-		string_ref_vec_add(&velo->view_state.results, fe->content);
+	if (level->preview_result[0]) {
+		string_ref_vec_add(&velo->view_state.results, level->preview_result);
 	}
+	velo->view_state.selection = 0;
+	velo->view_state.first_result = 0;
 	velo->window.surface.redraw = true;
+}
+
+/*
+ * Copy the current preview result to the clipboard via the configured copy
+ * command (default wl-copy), feeding the text through stdin so no shell
+ * escaping is needed.
+ */
+static void preview_copy(struct velo *velo, struct nav_level *level)
+{
+	if (!level->preview_result[0]) {
+		return;
+	}
+	FILE *fp = popen(level->copy_cmd[0] ? level->copy_cmd : "wl-copy", "w");
+	if (!fp) {
+		return;
+	}
+	fputs(level->preview_result, fp);
+	pclose(fp);
 }
 
 static void execute_command(const char *template, struct value_dict *dict)
@@ -1640,12 +1264,9 @@ static bool do_submit(struct velo *velo)
 		return true;
 	}
 
-	if (level && level->mode == SELECTION_FEEDBACK) {
-		if (!level->input_buffer[0]) {
-			return false;
-		}
-		feedback_spawn_process(velo, level);
-		return false;
+	if (level && level->mode == SELECTION_PREVIEW) {
+		preview_copy(velo, level);
+		return true;
 	}
 
 	uint32_t selection = velo->view_state.selection + velo->view_state.first_result;
@@ -2514,17 +2135,14 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		if (velo.feedback_process.active) {
-			int64_t wait = FEEDBACK_TIMEOUT_MS - ((int64_t)gettime_ms() - (int64_t)velo.feedback_process.start_time);
+		if (velo.nav_current && velo.nav_current->mode == SELECTION_PREVIEW
+				&& velo.nav_current->preview_dirty) {
+			int64_t wait = (int64_t)velo.nav_current->preview_input_time
+					+ PREVIEW_DEBOUNCE_MS - (int64_t)gettime_ms();
 			if (wait <= 0) {
 				timeout = 0;
 			} else if (timeout < 0 || wait < timeout) {
 				timeout = wait;
-			}
-			
-			int64_t anim_wait = 400;
-			if (timeout < 0 || anim_wait < timeout) {
-				timeout = anim_wait;
 			}
 		}
 
@@ -2536,13 +2154,7 @@ int main(int argc, char *argv[])
 			pollfds[nfds].events = POLLIN | POLLPRI;
 			nfds++;
 		}
-		
-		if (velo.feedback_process.active) {
-			pollfds[nfds].fd = velo.feedback_process.fd;
-			pollfds[nfds].events = POLLIN | POLLHUP;
-			nfds++;
-		}
-		
+
 		int res = poll(pollfds, nfds, timeout);
 		
 		if (res == 0) {
@@ -2558,8 +2170,6 @@ int main(int argc, char *argv[])
 					velo.repeat.next += 1000 / velo.repeat.rate;
 				}
 			}
-			feedback_process_check_timeout(&velo);
-			feedback_update_loading_animation(&velo);
 		} else if (res < 0) {
 			/* There was an error polling the display. */
 			wl_display_cancel_read(velo.wl_display);
@@ -2585,14 +2195,16 @@ int main(int argc, char *argv[])
 				 */
 				clipboard_finish_paste(&velo.clipboard);
 			}
-			if (velo.feedback_process.active) {
-				int feedback_idx = 1;
-				if (velo.clipboard.fd > 0) {
-					feedback_idx = 2;
-				}
-				if (pollfds[feedback_idx].revents & POLLHUP) {
-					feedback_process_complete(&velo);
-				}
+		}
+
+		/* Preview debounce: evaluate once the input has been quiet. */
+		if (velo.nav_current && velo.nav_current->mode == SELECTION_PREVIEW
+				&& velo.nav_current->preview_dirty) {
+			int64_t wait = (int64_t)velo.nav_current->preview_input_time
+					+ PREVIEW_DEBOUNCE_MS - (int64_t)gettime_ms();
+			if (wait <= 0) {
+				velo.nav_current->preview_dirty = false;
+				preview_eval(&velo, velo.nav_current);
 			}
 		}
 
@@ -2675,14 +2287,7 @@ int main(int argc, char *argv[])
 	wl_registry_destroy(velo.wl_registry);
 	string_ref_vec_destroy(&velo.view_state.commands);
 	string_ref_vec_destroy(&velo.view_state.results);
-	
-	struct nav_level *lvl;
-	wl_list_for_each(lvl, &velo.nav_stack, link) {
-		if (lvl->mode == SELECTION_FEEDBACK) {
-			feedback_history_save(lvl);
-		}
-	}
-	
+
 	plugin_destroy();
 	builtin_cleanup();
 	nav_results_destroy(&velo.base_results);

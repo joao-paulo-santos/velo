@@ -209,7 +209,7 @@ static plugin_type_t parse_plugin_type(const char *value)
 	if (strcmp(value, "list") == 0) return PLUGIN_LIST;
 	if (strcmp(value, "select") == 0) return PLUGIN_SELECT;
 	if (strcmp(value, "input") == 0) return PLUGIN_INPUT;
-	if (strcmp(value, "feedback") == 0) return PLUGIN_FEEDBACK;
+	if (strcmp(value, "preview") == 0) return PLUGIN_PREVIEW;
 	if (strcmp(value, "exec") == 0) return PLUGIN_EXEC;
 	return PLUGIN_LIST;
 }
@@ -290,9 +290,7 @@ static struct plugin *plugin_create(void)
 	p->depends_count = 0;
 	p->populate_fn = NULL;
 	p->execution_type = EXECUTION_EXEC;
-	p->show_input = true;
-	p->history_limit = 20;
-	p->persist_history = false;
+	snprintf(p->copy_cmd, NAV_CMD_MAX, "wl-copy");
 	return p;
 }
 
@@ -386,18 +384,8 @@ static int parse_toml_file(const char *path)
 			plugin->teleport = parse_bool_value(value);
 		} else if (strcmp(key, "eval_cmd") == 0) {
 			snprintf(plugin->eval_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
-		} else if (strcmp(key, "display_input") == 0) {
-			snprintf(plugin->display_input, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
-		} else if (strcmp(key, "display_result") == 0) {
-			snprintf(plugin->display_result, NAV_TEMPLATE_MAX, "%s", parse_string_value(value));
-		} else if (strcmp(key, "show_input") == 0) {
-			plugin->show_input = parse_bool_value(value);
-		} else if (strcmp(key, "history_limit") == 0) {
-			plugin->history_limit = atoi(value);
-		} else if (strcmp(key, "persist_history") == 0) {
-			plugin->persist_history = parse_bool_value(value);
-		} else if (strcmp(key, "history_name") == 0) {
-			snprintf(plugin->history_name, NAV_NAME_MAX, "%s", parse_string_value(value));
+		} else if (strcmp(key, "copy_cmd") == 0) {
+			snprintf(plugin->copy_cmd, NAV_CMD_MAX, "%s", parse_string_value(value));
 		}
 	}
 
