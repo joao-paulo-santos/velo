@@ -28,7 +28,9 @@ struct text_theme {
 struct view_theme {
 	struct color background_color;
 	struct color foreground_color;
-	struct color accent_color;
+	struct color selection_color;
+	struct color border_color;
+	struct color prompt_color;
 	float background_opacity;
 
 	char font_name[VIEW_MAX_FONT_NAME];

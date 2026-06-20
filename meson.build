@@ -29,17 +29,9 @@ install_data(
   install_dir: velo_data_dir
 )
 
-themes_location = join_paths(velo_data_dir, 'themes')
-
-install_data(
-  files(
-    'config/themes/default.toml',
-    'config/themes/tokyo-night.toml',
-    'config/themes/dracula.toml',
-    'config/themes/light.toml',
-    'config/themes/cherry-blossom.toml'
-  ),
-  install_dir: themes_location
+install_subdir(
+  'config/palettes',
+  install_dir: velo_data_dir
 )
 
 install_subdir(
@@ -111,6 +103,7 @@ common_sources = files(
   'src/matching.c',
   'src/mkdirp.c',
   'src/nav.c',
+  'src/palette.c',
   'src/plugin.c',
   'src/scale.c',
   'src/shm.c',

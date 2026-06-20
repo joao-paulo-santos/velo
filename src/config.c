@@ -14,6 +14,7 @@
 #include "config.h"
 #include "log.h"
 #include "nelem.h"
+#include "palette.h"
 #include "plugin.h"
 #include "scale.h"
 #include "unicode.h"
@@ -87,7 +88,6 @@ static char *get_config_path(void);
 static uint32_t fixup_percentage(uint32_t value, uint32_t base, bool is_percent);
 
 static uint32_t parse_anchor(const char *filename, size_t lineno, const char *str, bool *err);
-static struct color parse_color(const char *filename, size_t lineno, const char *str, bool *err);
 static uint32_t parse_uint32(const char *filename, size_t lineno, const char *str, bool *err);
 static float parse_float(const char *filename, size_t lineno, const char *str, bool *err);
 static struct uint32_percent parse_uint32_percent(const char *filename, size_t lineno, const char *str, bool *err);
@@ -314,11 +314,6 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 		if (!err) {
 			velo->anchor = val;
 		}
-	} else if (strcasecmp(option, "background-color") == 0) {
-		struct color val = parse_color(filename, lineno, value, &err);
-		if (!err) {
-			velo->view_theme.background_color = val;
-		}
 	} else if (strcasecmp(option, "background-opacity") == 0) {
 		float val = parse_float(filename, lineno, value, &err);
 		if (!err) {
@@ -353,16 +348,6 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 		uint32_t val = parse_uint32(filename, lineno, value, &err);
 		if (!err) {
 			velo->view_theme.border_width = val;
-		}
-	} else if (strcasecmp(option, "text-color") == 0) {
-		struct color val = parse_color(filename, lineno, value, &err);
-		if (!err) {
-			velo->view_theme.foreground_color = val;
-		}
-	} else if (strcasecmp(option, "accent-color") == 0) {
-		struct color val = parse_color(filename, lineno, value, &err);
-		if (!err) {
-			velo->view_theme.accent_color = val;
 		}
 	} else if (strcasecmp(option, "width") == 0) {
 		percent = parse_uint32_percent(filename, lineno, value, &err);
@@ -418,8 +403,12 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 		velo->view_theme.padding_right = parse_uint32(filename, lineno, value, &err);
 	} else if (strcasecmp(option, "plugins") == 0) {
 		plugin_apply_filter(value);
-	} else if (strcasecmp(option, "theme") == 0) {
-		snprintf(velo->theme_name, N_ELEM(velo->theme_name), "%s", value);
+	} else if (strcasecmp(option, "palette") == 0) {
+		snprintf(velo->palette_name, N_ELEM(velo->palette_name), "%s", value);
+	} else if (strcasecmp(option, "darkmode") == 0) {
+		velo->darkmode = (strcasecmp(value, "true") == 0
+				|| strcasecmp(value, "yes") == 0
+				|| strcasecmp(value, "1") == 0);
 	} else if (strcasecmp(option, "autosize") == 0) {
 		if (strcasecmp(value, "true") == 0 || strcasecmp(value, "yes") == 0 || strcasecmp(value, "1") == 0) {
 			velo->autosize = true;
@@ -431,83 +420,15 @@ bool parse_option(struct velo *velo, const char *filename, size_t lineno, const 
 	return !err;
 }
 
-static char *resolve_theme_path(const char *theme_name)
+void config_load_palette(struct velo *velo)
 {
-	const char *config_base = getenv("XDG_CONFIG_HOME");
-	char *fallback_base = NULL;
-	if (!config_base) {
-		const char *home = getenv("HOME");
-		if (home) {
-			size_t len = strlen(home) + strlen("/.config") + 1;
-			fallback_base = xmalloc(len);
-			snprintf(fallback_base, len, "%s/.config", home);
-			config_base = fallback_base;
-		}
-	}
-	if (config_base) {
-		char path[512];
-		snprintf(path, sizeof(path), "%s/velo/themes/%s.toml", config_base, theme_name);
-		if (access(path, R_OK) == 0) {
-			free(fallback_base);
-			return xstrdup(path);
-		}
-	}
-	free(fallback_base);
-	return NULL;
-}
-
-void config_list_themes(void)
-{
-	const char *config_base = getenv("XDG_CONFIG_HOME");
-	char *fallback_base = NULL;
-	if (!config_base) {
-		const char *home = getenv("HOME");
-		if (home) {
-			size_t len = strlen(home) + strlen("/.config") + 1;
-			fallback_base = xmalloc(len);
-			snprintf(fallback_base, len, "%s/.config", home);
-			config_base = fallback_base;
-		}
-	}
-	if (!config_base) {
-		return;
-	}
-
-	char path[512];
-	snprintf(path, sizeof(path), "%s/velo/themes", config_base);
-
-	DIR *dir = opendir(path);
-	if (!dir) {
-		free(fallback_base);
-		return;
-	}
-
-	struct dirent *entry;
-	while ((entry = readdir(dir)) != NULL) {
-		const char *name = entry->d_name;
-		size_t len = strlen(name);
-		if (len > 5 && strcmp(name + len - 5, ".toml") == 0) {
-			printf("%.*s\n", (int)(len - 5), name);
-		}
-	}
-
-	closedir(dir);
-	free(fallback_base);
-}
-
-void config_load_theme(struct velo *velo)
-{
-	if (velo->theme_name[0] == '\0') {
-		return;
-	}
-	char *path = resolve_theme_path(velo->theme_name);
-	if (!path) {
-		log_error("Theme '%s' not found.\n", velo->theme_name);
-		return;
-	}
-	log_debug("Loading theme: %s\n", path);
-	config_load(velo, path);
-	free(path);
+	struct palette p;
+	palette_load(velo->palette_name, velo->darkmode, &p);
+	velo->view_theme.background_color = p.surface;
+	velo->view_theme.foreground_color = p.on_surface;
+	velo->view_theme.selection_color = palette_selection_color(&p);
+	velo->view_theme.border_color = p.outline;
+	velo->view_theme.prompt_color = p.secondary;
 }
 
 bool config_apply(struct velo *velo, const char *option, const char *value)
@@ -793,18 +714,6 @@ uint32_t parse_anchor(const char *filename, size_t lineno, const char *str, bool
 		*err = true;
 	}
 	return 0;
-}
-
-struct color parse_color(const char *filename, size_t lineno, const char *str, bool *err)
-{
-	struct color color = hex_to_color(str);
-	if (color.r == -1) {
-		PARSE_ERROR(filename, lineno, "Failed to parse \"%s\" as a color.\n", str);
-		if (err) {
-			*err = true;
-		}
-	}
-	return color;
 }
 
 uint32_t parse_uint32(const char *filename, size_t lineno, const char *str, bool *err)

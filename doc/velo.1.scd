@@ -41,12 +41,17 @@ to teleport directly to it (e.g. *calc:*, *tmux:*, *url:*).
 	Teleport directly to a plugin at startup. The window closes when
 	leaving the plugin (no root menu). Example: *-e drun*
 
-*-t, --theme* <name>
-	Set theme. Overrides the *theme* config option. Themes are loaded
-	from _$XDG_CONFIG_HOME/velo/themes/<name>.toml_
+*--palette* <name>
+	Color palette. Overrides the *palette* config option. Palettes are
+	JSON files in _$XDG_CONFIG_HOME/velo/palettes/<name>.json_. See
+	_velo_(5) and the palette documentation for the format.
 
-*-L, --list-themes*
-	List available theme names and exit.
+*--darkmode* <bool>
+	Use the palette's dark (*true*) or light (*false*) variant.
+	Overrides the *darkmode* config option.
+
+*-L, --list-palettes*
+	List available palette names and exit.
 
 *--pick*
 	dmenu-compatible picker mode. Read newline-separated items from

@@ -1,6 +1,7 @@
 # velo config
 
-theme = "cherry-blossom"
+palette = "catppuccin-lavender"
+darkmode = true
 
 autosize = true
 
@@ -8,11 +9,8 @@ autosize = true
 font = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
 font-size = 14
 
-# Colors
-background-color = #1a1b26e6
+# Background transparency (0.1-1.0)
 background-opacity = 0.85
-text-color = #FFFFFF
-accent-color = #00d9ff
 
 # Window dimensions
 width = 600

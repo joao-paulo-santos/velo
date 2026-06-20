@@ -116,7 +116,8 @@ struct velo {
 	uint32_t anchor;
 	bool use_scale;
 	char target_output_name[MAX_OUTPUT_NAME_LEN];
-	char theme_name[64];
+	char palette_name[64];
+	bool darkmode;
 };
 
 struct plugin;

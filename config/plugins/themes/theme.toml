@@ -2,15 +2,15 @@ name = "theme"
 display_label = "Themes"
 type = "list"
 global = true
-children = ["theme-velo", "theme-kitty", "theme-waybar", "theme-hyprland"]
+children = ["palette-velo", "theme-kitty", "theme-waybar", "theme-hyprland"]
 ---
-name = "theme-velo"
+name = "palette-velo"
 display_label = "velo"
 type = "select"
-list_cmd = "ls -1 ~/.config/velo/themes/ | sed 's/\\.toml$//'"
+list_cmd = "ls -1 ~/.config/velo/palettes/ | sed 's/\\.json$//'"
 format = "lines"
-as = "theme"
-template = "sed -i 's/^theme = .*/theme = \"{theme}\"/' \"$HOME/.config/velo/config\""
+as = "palette"
+template = "sed -i 's/^palette = .*/palette = \"{palette}\"/' \"$HOME/.config/velo/config\""
 execution_type = "exec"
 ---
 name = "theme-kitty"

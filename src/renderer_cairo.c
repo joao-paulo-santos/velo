@@ -157,7 +157,7 @@ static void draw_background_and_clip(struct cairo_priv *priv, cairo_t *cr,
 	/* Border stroke (preserve path for corner clear). */
 	cairo_set_line_width(cr, 2 * theme->border_width);
 	rounded_rectangle(cr, scaled_width, scaled_height, theme->corner_radius);
-	struct color ac = theme->accent_color;
+	struct color ac = theme->border_color;
 	cairo_set_source_rgba(cr, ac.r, ac.g, ac.b, ac.a);
 	cairo_stroke_preserve(cr);
 
@@ -276,7 +276,7 @@ static bool cairo_init(struct renderer *r, uint8_t *buffer, uint32_t width, uint
 	setup_cairo_surfaces(priv, buffer, width, height, scale, theme);
 	setup_pango(priv, theme);
 
-	theme->prompt_theme.foreground_color = theme->foreground_color;
+	theme->prompt_theme.foreground_color = theme->prompt_color;
 	theme->input_theme.foreground_color = theme->foreground_color;
 	theme->result_theme.foreground_color = theme->foreground_color;
 
@@ -363,7 +363,7 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 	 * regardless of whether results exist (prevents autosize jitter). */
 	cairo_translate(cr, 0, 2);
 	if (num_results > 0) {
-		struct color sep_color = theme->accent_color;
+		struct color sep_color = theme->prompt_color;
 		cairo_set_source_rgba(cr, sep_color.r, sep_color.g, sep_color.b, sep_color.a);
 		cairo_set_line_width(cr, 1);
 		cairo_move_to(cr, 0, 0);
@@ -390,7 +390,7 @@ static void cairo_render(struct renderer *r, struct view_state *state,
 		if (size_overflows(priv, cr, logical_rect.height)) break;
 
 		if (i == state->selection) {
-			struct color sel_color = theme->accent_color;
+			struct color sel_color = theme->selection_color;
 			cairo_set_source_rgba(cr, sel_color.r, sel_color.g, sel_color.b, sel_color.a);
 			pango_cairo_show_layout(cr, priv->pango_layout);
 		} else {

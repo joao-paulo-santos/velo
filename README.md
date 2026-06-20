@@ -16,7 +16,7 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 - **Plugin chaining**: `next` forwards to another plugin, `return` passes values back to parent
 - **Teleport**: type `calc:`, `tmux:`, `url:` to jump directly to any plugin
 - **Autosize**: dynamic window height that grows/shrinks to fit results (like macOS Spotlight)
-- **Theming**: `theme = "name"` loads visual presets, `--list-themes` to list, theme picker plugin
+- **Palettes**: 60+ dark/light color palettes (noctalia-compatible JSON), `palette = "name"` + `darkmode`, `--list-palettes` to list
 - **Pipe modes**: `--pick` (dmenu replacement), `--input` (zenity --entry), `--sensitive` (passwords)
 - **Fuzzy search**: results sorted by match quality (contiguous > spread out)
 - **Dependency checking**: plugins auto-hide if required binaries are missing
@@ -33,7 +33,7 @@ No compiled modes, no scripts, no C plugins. Everything is a TOML file.
 | **tmux** | list | Session manager: attach, close, new, freeze, unfreeze |
 | **hyprland** | list | Window focus, workspace switching |
 | **wifi** | list | Connect, reconnect, forget networks |
-| **theme** | list | Switch themes for velo, kitty, waybar, hyprland |
+| **theme** | list | Switch the velo palette and kitty/waybar/hyprland themes |
 | **enter-password** | input | Reusable password prompt (chains with `next`) |
 
 ## Install
@@ -75,8 +75,8 @@ velo --input --prompt-text "Name: "
 # Password input (zenity --password replacement)
 velo --input --sensitive --prompt-text "Password: "
 
-# List available themes
-velo --list-themes
+# List available palettes
+velo --list-palettes
 ```
 
 ### With Hyprland
@@ -144,23 +144,22 @@ Config file: `~/.config/velo/config`
 ```
 font = "Sans"
 font-size = 24
-text-color = "#FFFFFF"
-background-color = "#1a1b26"
+palette = "tokyo-night"
+darkmode = true
 background-opacity = 0.9
-accent-color = "#7aa2f7"
 width = 50%
 border-width = 2
 corner-radius = 8
 padding = 16
 prompt-text = "run: "
 autosize = true
-theme = "tokyo-night"
 plugins = all
 ```
 
-See `doc/config` for all supported options.
+See `doc/config` for all supported options and `doc/palette.md` for the palette format.
 
 ## Credits
 
 - **tofi author**: [Philip Jones](https://github.com/philj56), creator of [tofi](https://github.com/philj56/tofi)
+- **Palettes**: built-in and community palettes sourced from [noctalia](https://noctalia.dev) (MIT) and its community catalogue
 - **License**: MIT

@@ -22,6 +22,7 @@
 #include "config.h"
 #include "input.h"
 #include "log.h"
+#include "palette.h"
 #include "plugin.h"
 #include "nav.h"
 #include "nelem.h"
@@ -836,7 +837,8 @@ static void usage(bool err)
 "  -f, --filter <plugins>     Filter plugins (comma-separated: all,-drun,tmux,wifi).\n"
 "  -p, --plugins <list>       Show only these plugins as root menu.\n"
 "  -e, --entry <plugin>       Teleport directly to a plugin's scene at startup.\n"
-"  -t, --theme <name>         Set theme (overrides config's theme setting).\n"
+"      --palette <name>       Color palette (filename in ~/.config/velo/palettes/).\n"
+"      --darkmode <bool>      Use the palette's dark (true) or light (false) variant.\n"
 "      --pick                 dmenu-compatible picker mode: read stdin lines, print selection to stdout.\n"
 "      --input                Input mode: show prompt, print typed text to stdout on Enter.\n"
 "      --sensitive            Mask input with asterisks (for use with --input).\n"
@@ -849,12 +851,9 @@ static void usage(bool err)
 "      --anchor <position>     Anchor position (top, bottom, left, right, center).\n"
 "      --padding <px>          Padding inside border.\n"
 "      --margin-* <px|%>       Margins (top, bottom, left, right).\n"
-"      --background-color      Background color (#RRGGBB or #RRGGBBAA).\n"
-"      --text-color            Text color.\n"
 "      --border-width <px>     Border width.\n"
-"      --accent-color          Accent color (border, selection, separator).\n"
 "      --corner-radius <px>    Corner radius.\n"
-"  -L, --list-themes           List available themes and exit.\n"
+"  -L, --list-palettes         List available palettes and exit.\n"
 "\n"
 "Config file: ~/.config/velo/config\n"
 "Plugins dir: ~/.config/velo/plugins/\n"
@@ -867,20 +866,18 @@ const struct option long_options[] = {
 	{"filter", required_argument, NULL, 'f'},
 	{"plugins", required_argument, NULL, 'p'},
 	{"entry", required_argument, NULL, 'e'},
-	{"theme", required_argument, NULL, 't'},
+	{"palette", required_argument, NULL, 0},
+	{"darkmode", required_argument, NULL, 0},
 	{"pick", no_argument, NULL, 'P'},
 	{"input", no_argument, NULL, 'I'},
 	{"sensitive", no_argument, NULL, 'S'},
 	{"anchor", required_argument, NULL, 0},
-	{"background-color", required_argument, NULL, 0},
 	{"corner-radius", required_argument, NULL, 0},
 	{"output", required_argument, NULL, 0},
 	{"font", required_argument, NULL, 0},
 	{"font-size", required_argument, NULL, 0},
 	{"prompt-text", required_argument, NULL, 0},
 	{"border-width", required_argument, NULL, 0},
-	{"text-color", required_argument, NULL, 0},
-	{"accent-color", required_argument, NULL, 0},
 	{"width", required_argument, NULL, 0},
 	{"height", required_argument, NULL, 0},
 	{"margin-top", required_argument, NULL, 0},
@@ -888,16 +885,15 @@ const struct option long_options[] = {
 	{"margin-left", required_argument, NULL, 0},
 	{"margin-right", required_argument, NULL, 0},
 	{"padding", required_argument, NULL, 0},
-	{"list-themes", no_argument, NULL, 'L'},
+	{"list-palettes", no_argument, NULL, 'L'},
 	{NULL, 0, NULL, 0}
 };
-const char *short_options = ":hc:f:p:e:t:PISL";
+const char *short_options = ":hc:f:p:e:PISL";
 
 static void parse_args(struct velo *velo, int argc, char *argv[], const char **entry_plugin, const char **plugin_list)
 {
 
 	bool load_default_config = true;
-	const char *cli_theme = NULL;
 	int option_index = 0;
 	*entry_plugin = NULL;
 	*plugin_list = NULL;
@@ -912,9 +908,9 @@ static void parse_args(struct velo *velo, int argc, char *argv[], const char **e
 		if (opt == 'h') {
 			usage(false);
 			exit(EXIT_SUCCESS);
-		} else if (opt == 'L') {
-			config_list_themes();
-			exit(EXIT_SUCCESS);
+	} else if (opt == 'L') {
+		palette_list();
+		exit(EXIT_SUCCESS);
 		} else if (opt == 'c') {
 			config_load(velo, optarg);
 			load_default_config = false;
@@ -924,9 +920,7 @@ static void parse_args(struct velo *velo, int argc, char *argv[], const char **e
 			*plugin_list = optarg;
 		} else if (opt == 'e') {
 			*entry_plugin = optarg;
-		} else if (opt == 't') {
-			cli_theme = optarg;
-		} else if (opt == 'P') {
+	} else if (opt == 'P') {
 			velo->picker_mode = true;
 		} else if (opt == 'I') {
 			velo->input_mode = true;
@@ -960,12 +954,6 @@ static void parse_args(struct velo *velo, int argc, char *argv[], const char **e
 		exit(EXIT_FAILURE);
 	}
 
-	if (cli_theme) {
-		snprintf(velo->theme_name, N_ELEM(velo->theme_name), "%s", cli_theme);
-	}
-
-	config_load_theme(velo);
-
 	/* Second pass, parse everything else. */
 	optind = 1;
 	opt = getopt_long(argc, argv, short_options, long_options, &option_index);
@@ -983,6 +971,9 @@ static void parse_args(struct velo *velo, int argc, char *argv[], const char **e
 		usage(true);
 		exit(EXIT_FAILURE);
 	}
+
+	/* Colors come from the palette, loaded once after all overrides resolve. */
+	config_load_palette(velo);
 }
 
 static struct nav_result *find_nav_result(struct nav_level *level, const char *label)
@@ -1865,8 +1856,8 @@ int main(int argc, char *argv[])
 {
 	/* Handle early-exit flags before any initialization. */
 	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--list-themes") == 0 || strcmp(argv[i], "-L") == 0) {
-			config_list_themes();
+		if (strcmp(argv[i], "--list-palettes") == 0 || strcmp(argv[i], "-L") == 0) {
+			palette_list();
 			return EXIT_SUCCESS;
 		}
 	}
@@ -1895,17 +1886,20 @@ int main(int argc, char *argv[])
 			.padding_left = 16,
 			.padding_right = 16,
 			.border_width = 2,
-			.background_color = {0.102f, 0.106f, 0.149f, 1.0f},
-			.background_opacity = 0.85f,
-			.foreground_color = {1.0f, 1.0f, 1.0f, 1.0f},
-			.accent_color = {0.0f, 0.851f, 1.0f, 1.0f},
-		},
+		.background_color = {0.125f, 0.133f, 0.141f, 1.0f},
+		.background_opacity = 0.85f,
+		.foreground_color = {0.988f, 0.988f, 0.988f, 1.0f},
+		.selection_color = {0.239f, 0.682f, 0.914f, 1.0f},
+		.border_color = {0.439f, 0.490f, 0.541f, 1.0f},
+		.prompt_color = {0.114f, 0.600f, 0.953f, 1.0f},
+	},
 		.view_state = {
 			.prompt = "> ",
 		},
-		.autosize = true,
-		.theme_name = "default",
-		.anchor =  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
+	.autosize = true,
+	.palette_name = "breeze",
+	.darkmode = true,
+	.anchor =  ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT
 			| ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,

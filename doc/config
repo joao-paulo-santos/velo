@@ -6,10 +6,15 @@
 font = Sans
 font-size = 24
 
-### Colors (hex with optional alpha)
-text-color = #FFFFFF
-background-color = #1B1D1E
-accent-color = #F92672
+### Palette
+# Color palette (filename in ~/.config/velo/palettes/, minus .json).
+# List installed palettes: velo --list-palettes
+# See doc/palette.md to create your own.
+palette = breeze
+# darkmode = true uses the palette's dark variant; false uses light.
+darkmode = true
+# Background transparency (0.1-1.0).
+background-opacity = 0.85
 
 ### Window
 width = 600

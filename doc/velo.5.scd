@@ -9,8 +9,8 @@ velo - configuration file
 Config file location: _$XDG_CONFIG_HOME/velo/config_
 
 Options can also be passed as CLI flags (see _velo_(1)).
-Values are: strings, integers, hex colors (#RRGGBB or #RRGGBBAA),
-or percentages (e.g. *50%*).
+Values are: strings, integers, booleans, or percentages (e.g. *50%*).
+Color values live in palettes, not the config — see _PALETTES_ below.
 
 # WINDOW
 
@@ -53,20 +53,8 @@ or percentages (e.g. *50%*).
 *font-size* <int>
 	Font size in pixels. Default: 24.
 
-*text-color* <color>
-	Default text color. Default: *#FFFFFF*.
-
-*background-color* <color>
-	Window background color. Alpha is ignored — use *background-opacity*
-	instead. Default: *#000000*.
-
 *background-opacity* <float>
-	Background transparency. Range 0.1 to 1.0. Overrides any alpha value
-	in *background-color*. Default: 1.0.
-
-*accent-color* <color>
-	Accent color for border, highlighted result, and separator.
-	Default: *#FFFF00*.
+	Background transparency. Range 0.1 to 1.0. Default: 1.0.
 
 *border-width* <int>
 	Border width in pixels. Default: 0.
@@ -92,15 +80,24 @@ or percentages (e.g. *50%*).
 *prompt-text* <string>
 	Default prompt text. Default: *run: *.
 
-# THEMES
+# PALETTES
 
-*theme* <string>
-	Theme name. Loads _$XDG_CONFIG_HOME/velo/themes/<name>.toml_
-	after the main config file. Theme files use the same options as the
-	config (visual only: colors, fonts, borders, padding, corners).
-	The *-t* CLI flag overrides this.
+Colors are defined by palettes — small JSON files with a dark and a light
+variant, stored in _$XDG_CONFIG_HOME/velo/palettes/<name>.json_. A palette
+holds six color roles (surface, onSurface, primary, onPrimary, secondary,
+outline); of these surface, onSurface, primary, and outline are rendered
+and the rest are reserved. See the palette documentation for the full
+format and how to create your own.
 
-	Available themes can be listed with *velo --list-themes*.
+*palette* <string>
+	Palette name (the JSON filename without the _.json_ suffix).
+	Default: *breeze*.
+
+*darkmode* <bool>
+	Use the palette's dark (*true*) or light (*false*) variant.
+	Default: *true*.
+
+	List installed palettes with *velo --list-palettes*.
 
 # PLUGINS
 
@@ -113,10 +110,9 @@ or percentages (e.g. *50%*).
 ```
 font = "Sans"
 font-size = 24
-text-color = "#FFFFFF"
-background-color = "#1a1b26"
+palette = "tokyo-night"
+darkmode = true
 background-opacity = 0.9
-accent-color = "#7aa2f7"
 width = 50%
 border-width = 2
 corner-radius = 8
@@ -124,7 +120,6 @@ padding = 16
 padding-bottom = 8
 prompt-text = "run: "
 autosize = true
-theme = "tokyo-night"
 plugins = all
 ```
 
